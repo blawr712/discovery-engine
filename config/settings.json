@@ -1,0 +1,19 @@
+{
+    "application": {
+        "data_source": "yfinance",
+        "log_level": "INFO",
+        "weekly_refresh": true,
+        "universe_directory": "data/raw/universe"
+    },
+
+    "directories": {
+        "output_directory": "data/exports",
+        "cache_directory": "data/cache"
+    },
+
+    "runtime": {
+        "save_raw_data": true,
+        "allow_large_cap_watchlist": true,
+        "max_concurrent_downloads": 5
+    }
+}

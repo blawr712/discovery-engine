@@ -1,0 +1,62 @@
+{
+    "project": {
+        "name": "Discovery Engine",
+        "version": "1.0.0"
+    },
+
+    "universe": {
+        "country_split": {
+            "CA": 0.60,
+            "US": 0.40
+        },
+
+        "market_cap": {
+            "minimum": 10000000,
+            "sweet_spot_min": 50000000,
+            "sweet_spot_max": 750000000,
+            "maximum": 1000000000
+        },
+
+        "minimum_average_dollar_volume": 250000
+    },
+
+    "weights": {
+        "volume_acceleration": 25,
+        "relative_strength": 25,
+        "trend_strength": 15,
+        "market_cap": 15,
+        "sector_bonus": 10,
+        "liquidity": 10
+    },
+
+    "sector_bonus": {
+        "Technology": 10,
+        "Software": 10,
+        "Cybersecurity": 10,
+        "Energy": 8,
+        "Industrials": 6,
+        "Healthcare": 6,
+        "Biotechnology": 6,
+        "Financial Services": 4,
+        "Basic Materials": 4
+    },
+
+    "benchmarks": {
+        "CA": "XIU.TO",
+        "US": "SPY"
+    },
+
+    "scoring": {
+        "minimum_price_history_days": 200,
+        "relative_strength_days": 126,
+        "volume_short_window": 30,
+        "volume_long_window": 90,
+        "moving_average_short": 50,
+        "moving_average_long": 200
+    },
+
+    "reports": {
+        "top_stocks": 100,
+        "export_format": "csv"
+    }
+}
