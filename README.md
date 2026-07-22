@@ -6,9 +6,10 @@ Discovery Engine is a modular Python platform that analyzes the North American e
 
 ## Current Status
 
-**Version:** v0.1 Foundation
+**Version:** v0.2 Performance (in progress)
 
-The project is establishing its architecture before advanced analytics are added.
+The project now applies an explainable metadata pre-filter before downloading
+price histories. Batching and persistent caching are the next performance work.
 
 ## Core Principles
 

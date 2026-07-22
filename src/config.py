@@ -20,7 +20,9 @@ def load_json(path: Path) -> dict:
 STRATEGY = load_json(STRATEGY_PATH)
 SETTINGS = load_json(SETTINGS_PATH)
 
-OUTPUT_DIR = BASE_DIR / SETTINGS.get("output_directory", "data/exports")
+DIRECTORIES = SETTINGS.get("directories", {})
+OUTPUT_DIR = BASE_DIR / DIRECTORIES.get("output_directory", "data/exports")
+CACHE_DIR = BASE_DIR / DIRECTORIES.get("cache_directory", "data/cache")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 BENCHMARKS = STRATEGY["benchmarks"]

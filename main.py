@@ -3,6 +3,7 @@ from src.data_sources.yfinance_source import YFinanceSource
 from src.scoring import calculate_scores
 from src.report import export_report
 from src.config import BENCHMARKS
+from src.pre_filter import evaluate_stock, filtered_result
 
 
 def main():
@@ -20,6 +21,16 @@ def main():
 
         try:
             stock_data = source.get_stock_data(ticker)
+
+            pre_filter = evaluate_stock(stock_data)
+            if not pre_filter.passed:
+                results.append(
+                    filtered_result(
+                        stock_data,
+                        pre_filter.reason or "Failed pre-filter",
+                    )
+                )
+                continue
 
             country = item.get("country") or stock_data.get("country")
             benchmark_ticker = BENCHMARKS.get(country, "SPY")
@@ -44,11 +55,17 @@ def main():
     output_path = export_report(results)
 
     passed = sum(1 for r in results if r.get("status") == "OK")
-    failed = sum(1 for r in results if r.get("status") != "OK")
+    filtered = sum(1 for r in results if r.get("status") == "FILTERED")
+    failed = sum(
+        1
+        for r in results
+        if r.get("status") not in {"OK", "FILTERED"}
+    )
 
     print("\nRun Summary")
     print(f"Total: {len(results)}")
     print(f"Passed: {passed}")
+    print(f"Filtered: {filtered}")
     print(f"Failed: {failed}")
 
     print("\nDone.")
