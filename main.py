@@ -1,13 +1,26 @@
 from src.universe import UniverseBuilder
 from src.data_sources.yfinance_source import YFinanceSource
+from src.data_sources.cached_source import CachedMarketDataSource
 from src.scoring import calculate_scores
 from src.report import export_report
-from src.config import BENCHMARKS
+from src.config import (
+    BENCHMARKS,
+    CACHE_DIR,
+    CACHE_ENABLED,
+    CACHE_METADATA_TTL_HOURS,
+    CACHE_PRICE_HISTORY_TTL_HOURS,
+)
 from src.pre_filter import evaluate_stock, filtered_result
 
 
 def main():
-    source = YFinanceSource()
+    source = CachedMarketDataSource(
+        YFinanceSource(),
+        cache_directory=CACHE_DIR,
+        metadata_ttl_hours=CACHE_METADATA_TTL_HOURS,
+        price_history_ttl_hours=CACHE_PRICE_HISTORY_TTL_HOURS,
+        enabled=CACHE_ENABLED,
+    )
     universe = UniverseBuilder().build_universe()
 
     benchmark_cache = {}
@@ -67,6 +80,11 @@ def main():
     print(f"Passed: {passed}")
     print(f"Filtered: {filtered}")
     print(f"Failed: {failed}")
+    if source.enabled:
+        print(f"Cache hits: {source.stats.hits}")
+        print(f"Cache misses: {source.stats.misses}")
+        print(f"Cache expired: {source.stats.expired}")
+        print(f"Cache read errors: {source.stats.read_errors}")
 
     print("\nDone.")
     print(f"Report saved to: {output_path}")

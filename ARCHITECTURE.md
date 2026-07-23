@@ -18,7 +18,9 @@ Universe Engine: Build and maintain investable universe.
 
 Pre-Filter Engine: Remove companies that do not meet baseline requirements.
 
-Data Engine: Retrieve market and metadata.
+Data Engine: Retrieve market and metadata through provider-agnostic sources.
+Persistent caching decorates a source and can be enabled or tuned without
+changing scoring or provider implementations.
 
 Scoring Engine: Calculate Discovery Score only.
 

@@ -6,6 +6,8 @@
 - Skip price-history downloads for companies rejected by the pre-filter
 - Report filtered companies separately from provider errors
 - Corrected nested output-directory configuration loading
+- Added persistent metadata and price-history caching with configurable TTLs
+- Added per-run cache statistics and recovery from unreadable cache entries
 
 ## v0.1 Foundation
 

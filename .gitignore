@@ -19,6 +19,7 @@ data/raw/
 data/processed/
 data/exports/
 data/outputs/
+data/cache/
 
 # Logs
 *.log

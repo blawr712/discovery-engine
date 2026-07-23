@@ -25,6 +25,14 @@ OUTPUT_DIR = BASE_DIR / DIRECTORIES.get("output_directory", "data/exports")
 CACHE_DIR = BASE_DIR / DIRECTORIES.get("cache_directory", "data/cache")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+CACHE_CONFIG = SETTINGS.get("cache", {})
+CACHE_ENABLED = CACHE_CONFIG.get("enabled", True)
+CACHE_METADATA_TTL_HOURS = CACHE_CONFIG.get("metadata_ttl_hours", 168)
+CACHE_PRICE_HISTORY_TTL_HOURS = CACHE_CONFIG.get(
+    "price_history_ttl_hours",
+    24,
+)
+
 BENCHMARKS = STRATEGY["benchmarks"]
 
 MARKET_CAP_CONFIG = STRATEGY["universe"]["market_cap"]

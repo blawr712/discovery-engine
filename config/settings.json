@@ -15,5 +15,11 @@
         "save_raw_data": true,
         "allow_large_cap_watchlist": true,
         "max_concurrent_downloads": 5
+    },
+
+    "cache": {
+        "enabled": true,
+        "metadata_ttl_hours": 168,
+        "price_history_ttl_hours": 24
     }
 }
