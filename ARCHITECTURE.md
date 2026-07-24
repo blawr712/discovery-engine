@@ -25,6 +25,8 @@ The orchestration engine collects metadata and price histories in separate,
 bounded-concurrency phases so filtering occurs before expensive price calls.
 Transient provider failures are retried below the cache layer with bounded
 exponential backoff and jitter; permanent failures pass directly to the engine.
+Run State stores an input fingerprint, manifest, and atomic per-company
+checkpoints so compatible interrupted runs can resume safely.
 
 Scoring Engine: Calculate Discovery Score only.
 

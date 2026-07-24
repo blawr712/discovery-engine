@@ -12,6 +12,9 @@
 - Added deterministic result ordering, benchmark reuse, and failure isolation
 - Added configurable transient-provider retries with exponential backoff
 - Added retry and exhausted-attempt statistics to run summaries
+- Added resumable runs with configuration and universe fingerprints
+- Added atomic per-company checkpoints and structured run manifests
+- Completed the v0.2 Performance milestone
 
 ## v0.1 Foundation
 

@@ -4,6 +4,7 @@ from src.data_sources.cached_source import CachedMarketDataSource
 from src.data_sources.retrying_source import RetryingMarketDataSource
 from src.report import export_report
 from src.engine import DiscoveryEngine
+from src.run_state import RunState, build_run_fingerprint
 from src.config import (
     BENCHMARKS,
     CACHE_DIR,
@@ -16,6 +17,11 @@ from src.config import (
     RETRY_JITTER_SECONDS,
     RETRY_MAX_ATTEMPTS,
     RETRY_MAX_DELAY_SECONDS,
+    RESUME_ENABLED,
+    RETRY_ERRORS_ON_RESUME,
+    RUN_DIR,
+    SETTINGS,
+    STRATEGY,
 )
 
 
@@ -46,19 +52,33 @@ def main():
         enabled=CACHE_ENABLED,
     )
     universe = UniverseBuilder().build_universe()
+    fingerprint = build_run_fingerprint(universe, STRATEGY, SETTINGS)
+    run_state = RunState.start_or_resume(
+        RUN_DIR,
+        fingerprint,
+        len(universe),
+        resume_enabled=RESUME_ENABLED,
+    )
+    prior_results = run_state.load_results(
+        retry_errors=RETRY_ERRORS_ON_RESUME,
+    )
 
     print(f"Loaded {len(universe)} tickers from universe.csv")
     print(f"Concurrent downloads: {MAX_CONCURRENT_DOWNLOADS}")
+    print(f"Run ID: {run_state.run_id}")
+    print(f"Resumed results: {len(prior_results)}")
 
     engine = DiscoveryEngine(
         source,
         benchmarks=BENCHMARKS,
         max_workers=MAX_CONCURRENT_DOWNLOADS,
         progress_callback=print_progress,
+        result_callback=run_state.record_result,
     )
-    results = engine.run(universe)
+    results = engine.run(universe, prior_results=prior_results)
 
-    output_path = export_report(results)
+    output_path = export_report(results, run_id=run_state.run_id)
+    run_state.complete(results, output_path)
 
     passed = sum(1 for r in results if r.get("status") == "OK")
     filtered = sum(1 for r in results if r.get("status") == "FILTERED")
@@ -83,6 +103,7 @@ def main():
 
     print("\nDone.")
     print(f"Report saved to: {output_path}")
+    print(f"Manifest saved to: {run_state.manifest_path}")
 
 
 if __name__ == "__main__":

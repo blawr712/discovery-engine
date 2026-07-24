@@ -14,6 +14,7 @@ from src.scoring import calculate_scores
 
 
 ProgressCallback = Callable[[str, int, int, str], None]
+ResultCallback = Callable[[int, dict], None]
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,7 @@ class DiscoveryEngine:
         benchmarks: dict[str, str],
         max_workers: int = 5,
         progress_callback: ProgressCallback | None = None,
+        result_callback: ResultCallback | None = None,
     ) -> None:
         if isinstance(max_workers, bool) or not isinstance(max_workers, int):
             raise TypeError("max_workers must be an integer.")
@@ -45,14 +47,28 @@ class DiscoveryEngine:
         self.benchmarks = benchmarks
         self.max_workers = max_workers
         self.progress_callback = progress_callback
+        self.result_callback = result_callback
 
-    def run(self, universe: list[dict]) -> list[dict]:
+    def run(
+        self,
+        universe: list[dict],
+        prior_results: dict[int, dict] | None = None,
+    ) -> list[dict]:
         """Analyze a universe and return rows in the original input order."""
         if not universe:
             return []
 
         results: list[dict | None] = [None] * len(universe)
-        candidates = self._collect_metadata(universe, results)
+        pending_universe = []
+
+        for index, item in enumerate(universe):
+            prior_result = (prior_results or {}).get(index)
+            if prior_result is not None:
+                results[index] = prior_result
+            else:
+                pending_universe.append((index, item))
+
+        candidates = self._collect_metadata(pending_universe, results)
         benchmark_data, benchmark_errors = self._load_benchmarks(candidates)
         self._collect_prices(
             candidates,
@@ -70,7 +86,7 @@ class DiscoveryEngine:
 
     def _collect_metadata(
         self,
-        universe: list[dict],
+        universe: list[tuple[int, dict]],
         results: list[dict | None],
     ) -> list[Candidate]:
         candidates: list[Candidate] = []
@@ -81,7 +97,7 @@ class DiscoveryEngine:
                     index,
                     str(item.get("ticker", "UNKNOWN")),
                 )
-                for index, item in enumerate(universe)
+                for index, item in universe
             }
 
             for completed, future in enumerate(as_completed(futures), start=1):
@@ -96,7 +112,7 @@ class DiscoveryEngine:
                 if candidate is not None:
                     candidates.append(candidate)
                 else:
-                    results[index] = result
+                    self._store_result(results, index, result)
 
                 self._report_progress(
                     "metadata",
@@ -170,11 +186,11 @@ class DiscoveryEngine:
             error = benchmark_errors.get(candidate.benchmark_ticker)
 
             if error is not None:
-                results[candidate.index] = _error_result(
+                self._store_result(results, candidate.index, _error_result(
                     candidate.ticker,
                     error,
                     f"Benchmark {candidate.benchmark_ticker}",
-                )
+                ))
             else:
                 ready.append(candidate)
 
@@ -192,13 +208,15 @@ class DiscoveryEngine:
                 candidate = futures[future]
 
                 try:
-                    results[candidate.index] = future.result()
+                    result = future.result()
                 except Exception as error:
-                    results[candidate.index] = _error_result(
+                    result = _error_result(
                         candidate.ticker,
                         error,
                         "Price history",
                     )
+
+                self._store_result(results, candidate.index, result)
 
                 self._report_progress(
                     "prices",
@@ -228,6 +246,18 @@ class DiscoveryEngine:
     ) -> None:
         if self.progress_callback is not None:
             self.progress_callback(phase, completed, total, ticker)
+
+    def _store_result(
+        self,
+        results: list[dict | None],
+        index: int,
+        result: dict | None,
+    ) -> None:
+        if result is None:
+            result = _error_result("UNKNOWN", "Pipeline produced no result")
+        results[index] = result
+        if self.result_callback is not None:
+            self.result_callback(index, result)
 
 
 def _error_result(

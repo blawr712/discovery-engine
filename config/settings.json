@@ -8,7 +8,8 @@
 
     "directories": {
         "output_directory": "data/exports",
-        "cache_directory": "data/cache"
+        "cache_directory": "data/cache",
+        "run_directory": "data/runs"
     },
 
     "runtime": {
@@ -29,5 +30,10 @@
         "base_delay_seconds": 0.5,
         "max_delay_seconds": 8,
         "jitter_seconds": 0.25
+    },
+
+    "run_state": {
+        "resume_enabled": true,
+        "retry_errors_on_resume": true
     }
 }

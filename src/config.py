@@ -23,6 +23,7 @@ SETTINGS = load_json(SETTINGS_PATH)
 DIRECTORIES = SETTINGS.get("directories", {})
 OUTPUT_DIR = BASE_DIR / DIRECTORIES.get("output_directory", "data/exports")
 CACHE_DIR = BASE_DIR / DIRECTORIES.get("cache_directory", "data/cache")
+RUN_DIR = BASE_DIR / DIRECTORIES.get("run_directory", "data/runs")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CACHE_CONFIG = SETTINGS.get("cache", {})
@@ -45,6 +46,13 @@ RETRY_MAX_ATTEMPTS = RETRY_CONFIG.get("max_attempts", 3)
 RETRY_BASE_DELAY_SECONDS = RETRY_CONFIG.get("base_delay_seconds", 0.5)
 RETRY_MAX_DELAY_SECONDS = RETRY_CONFIG.get("max_delay_seconds", 8)
 RETRY_JITTER_SECONDS = RETRY_CONFIG.get("jitter_seconds", 0.25)
+
+RUN_STATE_CONFIG = SETTINGS.get("run_state", {})
+RESUME_ENABLED = RUN_STATE_CONFIG.get("resume_enabled", True)
+RETRY_ERRORS_ON_RESUME = RUN_STATE_CONFIG.get(
+    "retry_errors_on_resume",
+    True,
+)
 
 BENCHMARKS = STRATEGY["benchmarks"]
 

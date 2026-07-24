@@ -151,6 +151,30 @@ class DiscoveryEngineTests(unittest.TestCase):
         self.assertEqual(self.engine.run([]), [])
         self.assertEqual(self.source.active_calls, 0)
 
+    def test_reuses_prior_results_and_only_emits_new_results(self):
+        emitted = []
+        engine = DiscoveryEngine(
+            self.source,
+            benchmarks={"US": "SPY"},
+            max_workers=2,
+            result_callback=lambda index, result: emitted.append(
+                (index, result["ticker"])
+            ),
+        )
+        prior = {0: {"ticker": "DONE", "status": "OK"}}
+
+        results = engine.run(
+            [
+                {"ticker": "DONE", "country": "US"},
+                {"ticker": "NEW", "country": "US"},
+            ],
+            prior_results=prior,
+        )
+
+        self.assertEqual([row["ticker"] for row in results], ["DONE", "NEW"])
+        self.assertEqual(self.source.metadata_calls["DONE"], 0)
+        self.assertEqual(emitted, [(1, "NEW")])
+
 
 if __name__ == "__main__":
     unittest.main()

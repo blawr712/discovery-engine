@@ -20,6 +20,7 @@ data/processed/
 data/exports/
 data/outputs/
 data/cache/
+data/runs/
 
 # Logs
 *.log
