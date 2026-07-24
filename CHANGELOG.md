@@ -15,6 +15,7 @@
 - Added resumable runs with configuration and universe fingerprints
 - Added atomic per-company checkpoints and structured run manifests
 - Completed the v0.2 Performance milestone
+- Added reproducible `--tickers` and `--limit` smoke-run options
 
 ## v0.1 Foundation
 

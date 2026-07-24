@@ -1,0 +1,76 @@
+"""Command-line options for full and controlled Discovery Engine runs."""
+
+from __future__ import annotations
+
+import argparse
+from collections.abc import Sequence
+
+
+def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse mutually exclusive universe-selection options."""
+    parser = argparse.ArgumentParser(
+        description="Analyze the Discovery Engine equity universe.",
+    )
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument(
+        "--tickers",
+        nargs="+",
+        metavar="TICKER",
+        help="analyze only these tickers from the configured universe",
+    )
+    selection.add_argument(
+        "--limit",
+        type=_positive_integer,
+        metavar="COUNT",
+        help="analyze only the first COUNT universe entries",
+    )
+    return parser.parse_args(arguments)
+
+
+def select_universe(
+    universe: list[dict],
+    tickers: list[str] | None = None,
+    limit: int | None = None,
+) -> list[dict]:
+    """Select a reproducible subset while retaining universe metadata."""
+    if tickers is not None and limit is not None:
+        raise ValueError("tickers and limit cannot be used together")
+
+    if limit is not None:
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+            raise ValueError("limit must be a positive integer")
+        return universe[:limit]
+
+    if tickers is None:
+        return universe
+
+    lookup = {
+        str(item["ticker"]).strip().upper(): item
+        for item in universe
+    }
+    requested = list(dict.fromkeys(
+        str(ticker).strip().upper()
+        for ticker in tickers
+        if str(ticker).strip()
+    ))
+    missing = [ticker for ticker in requested if ticker not in lookup]
+
+    if missing:
+        raise ValueError(
+            "Tickers not found in the configured universe: "
+            + ", ".join(missing)
+        )
+
+    return [lookup[ticker] for ticker in requested]
+
+
+def _positive_integer(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be an integer") from error
+
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+
+    return number

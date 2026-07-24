@@ -19,6 +19,21 @@ bounded concurrent collection, transient retry/backoff, and resumable runs.
 - Modular architecture
 - Explainable scoring
 
+## Running
+
+Run the complete configured universe:
+
+```powershell
+python main.py
+```
+
+Run a controlled smoke test by ticker or universe size:
+
+```powershell
+python main.py --tickers DCBO.TO WELL.TO SOFI IONQ RKLB
+python main.py --limit 25
+```
+
 ## Documentation
 
 - PROJECT_CONTEXT.md

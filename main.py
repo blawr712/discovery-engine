@@ -5,6 +5,7 @@ from src.data_sources.retrying_source import RetryingMarketDataSource
 from src.report import export_report
 from src.engine import DiscoveryEngine
 from src.run_state import RunState, build_run_fingerprint
+from src.cli import parse_args, select_universe
 from src.config import (
     BENCHMARKS,
     CACHE_DIR,
@@ -35,7 +36,8 @@ def print_progress(
     print(f"[{phase}] {completed}/{total}: {ticker}")
 
 
-def main():
+def main(arguments=None):
+    args = parse_args(arguments)
     provider = YFinanceSource()
     retry_source = RetryingMarketDataSource(
         provider,
@@ -52,6 +54,14 @@ def main():
         enabled=CACHE_ENABLED,
     )
     universe = UniverseBuilder().build_universe()
+    try:
+        universe = select_universe(
+            universe,
+            tickers=args.tickers,
+            limit=args.limit,
+        )
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
     fingerprint = build_run_fingerprint(universe, STRATEGY, SETTINGS)
     run_state = RunState.start_or_resume(
         RUN_DIR,
@@ -63,7 +73,7 @@ def main():
         retry_errors=RETRY_ERRORS_ON_RESUME,
     )
 
-    print(f"Loaded {len(universe)} tickers from universe.csv")
+    print(f"Selected {len(universe)} tickers for analysis")
     print(f"Concurrent downloads: {MAX_CONCURRENT_DOWNLOADS}")
     print(f"Run ID: {run_state.run_id}")
     print(f"Resumed results: {len(prior_results)}")
