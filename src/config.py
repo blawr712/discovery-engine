@@ -33,6 +33,12 @@ CACHE_PRICE_HISTORY_TTL_HOURS = CACHE_CONFIG.get(
     24,
 )
 
+RUNTIME_CONFIG = SETTINGS.get("runtime", {})
+MAX_CONCURRENT_DOWNLOADS = RUNTIME_CONFIG.get(
+    "max_concurrent_downloads",
+    5,
+)
+
 BENCHMARKS = STRATEGY["benchmarks"]
 
 MARKET_CAP_CONFIG = STRATEGY["universe"]["market_cap"]

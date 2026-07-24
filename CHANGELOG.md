@@ -8,6 +8,8 @@
 - Corrected nested output-directory configuration loading
 - Added persistent metadata and price-history caching with configurable TTLs
 - Added per-run cache statistics and recovery from unreadable cache entries
+- Added bounded concurrent metadata and price-history collection
+- Added deterministic result ordering, benchmark reuse, and failure isolation
 
 ## v0.1 Foundation
 

@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import threading
 import time
 from typing import Callable
 
@@ -48,6 +49,7 @@ class CachedMarketDataSource(MarketDataSource):
         self.enabled = enabled
         self.clock = clock
         self.stats = CacheStats()
+        self._stats_lock = threading.Lock()
 
         if self.enabled:
             (self.cache_directory / "metadata").mkdir(parents=True, exist_ok=True)
@@ -97,13 +99,13 @@ class CachedMarketDataSource(MarketDataSource):
 
     def _fresh(self, path: Path, ttl_seconds: float) -> bool:
         if not path.exists():
-            self.stats.misses += 1
+            self._record_stat("misses")
             return False
 
         age_seconds = max(0, self.clock() - path.stat().st_mtime)
 
         if age_seconds > ttl_seconds:
-            self.stats.expired += 1
+            self._record_stat("expired")
             return False
 
         return True
@@ -116,14 +118,14 @@ class CachedMarketDataSource(MarketDataSource):
             with path.open("r", encoding="utf-8") as file:
                 data = json.load(file)
         except (OSError, json.JSONDecodeError, TypeError):
-            self.stats.read_errors += 1
+            self._record_stat("read_errors")
             return None
 
         if not isinstance(data, dict):
-            self.stats.read_errors += 1
+            self._record_stat("read_errors")
             return None
 
-        self.stats.hits += 1
+        self._record_stat("hits")
         return data
 
     def _read_price_history(
@@ -137,11 +139,15 @@ class CachedMarketDataSource(MarketDataSource):
         try:
             data = pd.read_json(path, orient="table")
         except (OSError, ValueError, TypeError, KeyError):
-            self.stats.read_errors += 1
+            self._record_stat("read_errors")
             return None
 
-        self.stats.hits += 1
+        self._record_stat("hits")
         return data
+
+    def _record_stat(self, name: str) -> None:
+        with self._stats_lock:
+            setattr(self.stats, name, getattr(self.stats, name) + 1)
 
     @staticmethod
     def _write_json(path: Path, data: dict) -> None:

@@ -1,16 +1,26 @@
 from src.universe import UniverseBuilder
 from src.data_sources.yfinance_source import YFinanceSource
 from src.data_sources.cached_source import CachedMarketDataSource
-from src.scoring import calculate_scores
 from src.report import export_report
+from src.engine import DiscoveryEngine
 from src.config import (
     BENCHMARKS,
     CACHE_DIR,
     CACHE_ENABLED,
     CACHE_METADATA_TTL_HOURS,
     CACHE_PRICE_HISTORY_TTL_HOURS,
+    MAX_CONCURRENT_DOWNLOADS,
 )
-from src.pre_filter import evaluate_stock, filtered_result
+
+
+def print_progress(
+    phase: str,
+    completed: int,
+    total: int,
+    ticker: str,
+) -> None:
+    """Print compact progress for each collection phase."""
+    print(f"[{phase}] {completed}/{total}: {ticker}")
 
 
 def main():
@@ -23,47 +33,16 @@ def main():
     )
     universe = UniverseBuilder().build_universe()
 
-    benchmark_cache = {}
-    results = []
-
     print(f"Loaded {len(universe)} tickers from universe.csv")
+    print(f"Concurrent downloads: {MAX_CONCURRENT_DOWNLOADS}")
 
-    for item in universe:
-        ticker = item["ticker"]
-        print(f"Analyzing {ticker}...")
-
-        try:
-            stock_data = source.get_stock_data(ticker)
-
-            pre_filter = evaluate_stock(stock_data)
-            if not pre_filter.passed:
-                results.append(
-                    filtered_result(
-                        stock_data,
-                        pre_filter.reason or "Failed pre-filter",
-                    )
-                )
-                continue
-
-            country = item.get("country") or stock_data.get("country")
-            benchmark_ticker = BENCHMARKS.get(country, "SPY")
-
-            if benchmark_ticker not in benchmark_cache:
-                benchmark_cache[benchmark_ticker] = source.get_price_history(benchmark_ticker)
-
-            price_history = source.get_price_history(ticker)
-            benchmark_history = benchmark_cache[benchmark_ticker]
-
-            score = calculate_scores(stock_data, price_history, benchmark_history)
-            results.append(score)
-
-        except Exception as e:
-            results.append({
-                "ticker": ticker,
-                "status": "ERROR",
-                "reason_flags": str(e),
-                "discovery_score": 0,
-            })
+    engine = DiscoveryEngine(
+        source,
+        benchmarks=BENCHMARKS,
+        max_workers=MAX_CONCURRENT_DOWNLOADS,
+        progress_callback=print_progress,
+    )
+    results = engine.run(universe)
 
     output_path = export_report(results)
 

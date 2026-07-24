@@ -21,6 +21,8 @@ Pre-Filter Engine: Remove companies that do not meet baseline requirements.
 Data Engine: Retrieve market and metadata through provider-agnostic sources.
 Persistent caching decorates a source and can be enabled or tuned without
 changing scoring or provider implementations.
+The orchestration engine collects metadata and price histories in separate,
+bounded-concurrency phases so filtering occurs before expensive price calls.
 
 Scoring Engine: Calculate Discovery Score only.
 
