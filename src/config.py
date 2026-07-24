@@ -39,6 +39,13 @@ MAX_CONCURRENT_DOWNLOADS = RUNTIME_CONFIG.get(
     5,
 )
 
+RETRY_CONFIG = SETTINGS.get("retry", {})
+RETRY_ENABLED = RETRY_CONFIG.get("enabled", True)
+RETRY_MAX_ATTEMPTS = RETRY_CONFIG.get("max_attempts", 3)
+RETRY_BASE_DELAY_SECONDS = RETRY_CONFIG.get("base_delay_seconds", 0.5)
+RETRY_MAX_DELAY_SECONDS = RETRY_CONFIG.get("max_delay_seconds", 8)
+RETRY_JITTER_SECONDS = RETRY_CONFIG.get("jitter_seconds", 0.25)
+
 BENCHMARKS = STRATEGY["benchmarks"]
 
 MARKET_CAP_CONFIG = STRATEGY["universe"]["market_cap"]

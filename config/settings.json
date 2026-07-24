@@ -21,5 +21,13 @@
         "enabled": true,
         "metadata_ttl_hours": 168,
         "price_history_ttl_hours": 24
+    },
+
+    "retry": {
+        "enabled": true,
+        "max_attempts": 3,
+        "base_delay_seconds": 0.5,
+        "max_delay_seconds": 8,
+        "jitter_seconds": 0.25
     }
 }

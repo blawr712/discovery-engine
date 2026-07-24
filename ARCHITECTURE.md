@@ -23,6 +23,8 @@ Persistent caching decorates a source and can be enabled or tuned without
 changing scoring or provider implementations.
 The orchestration engine collects metadata and price histories in separate,
 bounded-concurrency phases so filtering occurs before expensive price calls.
+Transient provider failures are retried below the cache layer with bounded
+exponential backoff and jitter; permanent failures pass directly to the engine.
 
 Scoring Engine: Calculate Discovery Score only.
 

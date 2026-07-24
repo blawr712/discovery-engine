@@ -9,7 +9,7 @@ Discovery Engine is a modular Python platform that analyzes the North American e
 **Version:** v0.2 Performance (in progress)
 
 The project now applies an explainable metadata pre-filter, persistent cache,
-and bounded concurrent market-data collection.
+bounded concurrent collection, and transient provider retry/backoff.
 
 ## Core Principles
 

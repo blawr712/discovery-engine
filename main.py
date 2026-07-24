@@ -1,6 +1,7 @@
 from src.universe import UniverseBuilder
 from src.data_sources.yfinance_source import YFinanceSource
 from src.data_sources.cached_source import CachedMarketDataSource
+from src.data_sources.retrying_source import RetryingMarketDataSource
 from src.report import export_report
 from src.engine import DiscoveryEngine
 from src.config import (
@@ -10,6 +11,11 @@ from src.config import (
     CACHE_METADATA_TTL_HOURS,
     CACHE_PRICE_HISTORY_TTL_HOURS,
     MAX_CONCURRENT_DOWNLOADS,
+    RETRY_BASE_DELAY_SECONDS,
+    RETRY_ENABLED,
+    RETRY_JITTER_SECONDS,
+    RETRY_MAX_ATTEMPTS,
+    RETRY_MAX_DELAY_SECONDS,
 )
 
 
@@ -24,8 +30,16 @@ def print_progress(
 
 
 def main():
+    provider = YFinanceSource()
+    retry_source = RetryingMarketDataSource(
+        provider,
+        max_attempts=RETRY_MAX_ATTEMPTS if RETRY_ENABLED else 1,
+        base_delay_seconds=RETRY_BASE_DELAY_SECONDS,
+        max_delay_seconds=RETRY_MAX_DELAY_SECONDS,
+        jitter_seconds=RETRY_JITTER_SECONDS,
+    )
     source = CachedMarketDataSource(
-        YFinanceSource(),
+        retry_source,
         cache_directory=CACHE_DIR,
         metadata_ttl_hours=CACHE_METADATA_TTL_HOURS,
         price_history_ttl_hours=CACHE_PRICE_HISTORY_TTL_HOURS,
@@ -64,6 +78,8 @@ def main():
         print(f"Cache misses: {source.stats.misses}")
         print(f"Cache expired: {source.stats.expired}")
         print(f"Cache read errors: {source.stats.read_errors}")
+    print(f"Provider retries: {retry_source.stats.retries}")
+    print(f"Retries exhausted: {retry_source.stats.exhausted}")
 
     print("\nDone.")
     print(f"Report saved to: {output_path}")

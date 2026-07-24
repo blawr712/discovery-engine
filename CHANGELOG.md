@@ -10,6 +10,8 @@
 - Added per-run cache statistics and recovery from unreadable cache entries
 - Added bounded concurrent metadata and price-history collection
 - Added deterministic result ordering, benchmark reuse, and failure isolation
+- Added configurable transient-provider retries with exponential backoff
+- Added retry and exhausted-attempt statistics to run summaries
 
 ## v0.1 Foundation
 
