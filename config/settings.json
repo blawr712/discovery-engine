@@ -15,7 +15,9 @@
     "runtime": {
         "save_raw_data": true,
         "allow_large_cap_watchlist": true,
-        "max_concurrent_downloads": 5
+        "max_concurrent_downloads": 5,
+        "metadata_concurrent_downloads": 2,
+        "price_concurrent_downloads": 5
     },
 
     "cache": {
@@ -30,6 +32,14 @@
         "base_delay_seconds": 0.5,
         "max_delay_seconds": 8,
         "jitter_seconds": 0.25
+    },
+
+    "rate_limit": {
+        "enabled": true,
+        "metadata_interval_seconds": 1.0,
+        "price_interval_seconds": 0.2,
+        "cooldown_seconds": 300,
+        "max_cooldown_events": 3
     },
 
     "run_state": {

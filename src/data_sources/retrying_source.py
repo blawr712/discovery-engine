@@ -26,8 +26,13 @@ class RetryStats:
 def is_transient_provider_error(error: Exception) -> bool:
     """Identify network, timeout, and provider rate-limit failures."""
     return isinstance(error, (ConnectionError, TimeoutError, OSError)) or (
-        type(error).__name__ == "YFRateLimitError"
+        is_rate_limit_error(error)
     )
+
+
+def is_rate_limit_error(error: Exception) -> bool:
+    """Identify Yahoo's rate-limit exception without coupling to yfinance."""
+    return type(error).__name__ == "YFRateLimitError"
 
 
 class RetryingMarketDataSource(MarketDataSource):

@@ -146,6 +146,22 @@ class DiscoveryEngineTests(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             DiscoveryEngine(self.source, {}, max_workers=2.5)
+        with self.assertRaises(ValueError):
+            DiscoveryEngine(self.source, {}, metadata_workers=0)
+        with self.assertRaises(TypeError):
+            DiscoveryEngine(self.source, {}, price_workers=2.5)
+
+    def test_uses_separate_worker_limits(self):
+        engine = DiscoveryEngine(
+            self.source,
+            {},
+            max_workers=5,
+            metadata_workers=1,
+            price_workers=3,
+        )
+
+        self.assertEqual(engine.metadata_workers, 1)
+        self.assertEqual(engine.price_workers, 3)
 
     def test_empty_universe_does_not_call_provider(self):
         self.assertEqual(self.engine.run([]), [])

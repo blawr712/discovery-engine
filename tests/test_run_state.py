@@ -127,11 +127,41 @@ class RunStateTests(unittest.TestCase):
 
         with state.manifest_path.open("r", encoding="utf-8") as file:
             manifest = json.load(file)
-        self.assertEqual(manifest["status"], "complete")
+        self.assertEqual(manifest["status"], "completed_with_errors")
         self.assertEqual(manifest["duration_seconds"], 12.346)
         self.assertEqual(manifest["report_path"], "final.csv")
         self.assertEqual(manifest["summary"]["statuses"], {"ERROR": 1, "OK": 1})
         self.assertEqual(manifest["summary"]["failure_stages"], {"Metadata": 1})
+
+    def test_resumes_completed_run_with_errors_only(self):
+        state = RunState.start_or_resume(
+            self.root,
+            "fingerprint",
+            2,
+            clock=self.clock,
+        )
+        state.record_result(0, {"ticker": "GOOD", "status": "OK"})
+        state.record_result(1, {"ticker": "RETRY", "status": "ERROR"})
+        state.complete(
+            [
+                {"ticker": "GOOD", "status": "OK"},
+                {"ticker": "RETRY", "status": "ERROR"},
+            ],
+            "partial.csv",
+        )
+
+        resumed = RunState.start_or_resume(
+            self.root,
+            "fingerprint",
+            2,
+            clock=self.clock,
+        )
+
+        self.assertTrue(resumed.resumed)
+        self.assertEqual(resumed.run_id, state.run_id)
+        self.assertEqual(resumed.manifest["status"], "in_progress")
+        self.assertEqual(resumed.manifest["resume_count"], 1)
+        self.assertEqual(list(resumed.load_results()), [0])
 
     def test_fingerprint_is_stable_and_input_sensitive(self):
         universe = [{"ticker": "ONE", "country": "US"}]

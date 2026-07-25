@@ -39,6 +39,14 @@ MAX_CONCURRENT_DOWNLOADS = RUNTIME_CONFIG.get(
     "max_concurrent_downloads",
     5,
 )
+METADATA_CONCURRENT_DOWNLOADS = RUNTIME_CONFIG.get(
+    "metadata_concurrent_downloads",
+    MAX_CONCURRENT_DOWNLOADS,
+)
+PRICE_CONCURRENT_DOWNLOADS = RUNTIME_CONFIG.get(
+    "price_concurrent_downloads",
+    MAX_CONCURRENT_DOWNLOADS,
+)
 
 RETRY_CONFIG = SETTINGS.get("retry", {})
 RETRY_ENABLED = RETRY_CONFIG.get("enabled", True)
@@ -46,6 +54,25 @@ RETRY_MAX_ATTEMPTS = RETRY_CONFIG.get("max_attempts", 3)
 RETRY_BASE_DELAY_SECONDS = RETRY_CONFIG.get("base_delay_seconds", 0.5)
 RETRY_MAX_DELAY_SECONDS = RETRY_CONFIG.get("max_delay_seconds", 8)
 RETRY_JITTER_SECONDS = RETRY_CONFIG.get("jitter_seconds", 0.25)
+
+RATE_LIMIT_CONFIG = SETTINGS.get("rate_limit", {})
+RATE_LIMIT_ENABLED = RATE_LIMIT_CONFIG.get("enabled", True)
+METADATA_INTERVAL_SECONDS = RATE_LIMIT_CONFIG.get(
+    "metadata_interval_seconds",
+    1.0,
+)
+PRICE_INTERVAL_SECONDS = RATE_LIMIT_CONFIG.get(
+    "price_interval_seconds",
+    0.2,
+)
+RATE_LIMIT_COOLDOWN_SECONDS = RATE_LIMIT_CONFIG.get(
+    "cooldown_seconds",
+    300,
+)
+MAX_RATE_LIMIT_COOLDOWN_EVENTS = RATE_LIMIT_CONFIG.get(
+    "max_cooldown_events",
+    3,
+)
 
 RUN_STATE_CONFIG = SETTINGS.get("run_state", {})
 RESUME_ENABLED = RUN_STATE_CONFIG.get("resume_enabled", True)

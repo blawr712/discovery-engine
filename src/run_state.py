@@ -76,6 +76,10 @@ class RunState:
             )
             if match is not None:
                 run_directory, manifest = match
+                manifest["status"] = "in_progress"
+                manifest["completed_at"] = None
+                manifest["report_path"] = None
+                manifest["resume_count"] = manifest.get("resume_count", 0) + 1
                 state = cls(
                     run_directory,
                     manifest,
@@ -103,6 +107,7 @@ class RunState:
             "completed_count": 0,
             "summary": None,
             "report_path": None,
+            "resume_count": 0,
         }
         state = cls(run_directory, manifest, clock)
         state._write_manifest()
@@ -149,9 +154,13 @@ class RunState:
         """Mark the run complete and add aggregate manifest statistics."""
         completed_at = self.clock()
         started_at = datetime.fromisoformat(self.manifest["started_at"])
+        summary = summarize_results(results)
+        error_count = summary["statuses"].get("ERROR", 0)
         self.manifest.update(
             {
-                "status": "complete",
+                "status": (
+                    "completed_with_errors" if error_count else "complete"
+                ),
                 "updated_at": _utc_iso(completed_at),
                 "completed_at": _utc_iso(completed_at),
                 "duration_seconds": round(
@@ -159,7 +168,7 @@ class RunState:
                     3,
                 ),
                 "completed_count": len(results),
-                "summary": summarize_results(results),
+                "summary": summary,
                 "report_path": report_path,
             }
         )
@@ -191,7 +200,8 @@ class RunState:
                 continue
 
             if (
-                manifest.get("status") == "in_progress"
+                manifest.get("status")
+                in {"in_progress", "completed_with_errors"}
                 and manifest.get("fingerprint") == fingerprint
                 and manifest.get("universe_size") == universe_size
             ):

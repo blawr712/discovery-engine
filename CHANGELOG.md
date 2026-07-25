@@ -16,6 +16,11 @@
 - Added atomic per-company checkpoints and structured run manifests
 - Completed the v0.2 Performance milestone
 - Added reproducible `--tickers` and `--limit` smoke-run options
+- Added shared provider pacing and global Yahoo rate-limit cooldowns
+- Added separate metadata and price-history worker limits
+- Made completed runs with provider errors resumable
+- Added a provider circuit breaker for persistent rate limiting
+- Split scoring failures from provider errors in run summaries
 
 ## v0.1 Foundation
 

@@ -2,6 +2,7 @@ from src.universe import UniverseBuilder
 from src.data_sources.yfinance_source import YFinanceSource
 from src.data_sources.cached_source import CachedMarketDataSource
 from src.data_sources.retrying_source import RetryingMarketDataSource
+from src.data_sources.rate_limited_source import RateLimitedMarketDataSource
 from src.report import export_report
 from src.engine import DiscoveryEngine
 from src.run_state import RunState, build_run_fingerprint
@@ -13,6 +14,8 @@ from src.config import (
     CACHE_METADATA_TTL_HOURS,
     CACHE_PRICE_HISTORY_TTL_HOURS,
     MAX_CONCURRENT_DOWNLOADS,
+    METADATA_CONCURRENT_DOWNLOADS,
+    PRICE_CONCURRENT_DOWNLOADS,
     RETRY_BASE_DELAY_SECONDS,
     RETRY_ENABLED,
     RETRY_JITTER_SECONDS,
@@ -23,6 +26,11 @@ from src.config import (
     RUN_DIR,
     SETTINGS,
     STRATEGY,
+    RATE_LIMIT_ENABLED,
+    METADATA_INTERVAL_SECONDS,
+    PRICE_INTERVAL_SECONDS,
+    RATE_LIMIT_COOLDOWN_SECONDS,
+    MAX_RATE_LIMIT_COOLDOWN_EVENTS,
 )
 
 
@@ -38,7 +46,14 @@ def print_progress(
 
 def main(arguments=None):
     args = parse_args(arguments)
-    provider = YFinanceSource()
+    provider = RateLimitedMarketDataSource(
+        YFinanceSource(),
+        metadata_interval_seconds=METADATA_INTERVAL_SECONDS,
+        price_interval_seconds=PRICE_INTERVAL_SECONDS,
+        cooldown_seconds=RATE_LIMIT_COOLDOWN_SECONDS,
+        max_cooldown_events=MAX_RATE_LIMIT_COOLDOWN_EVENTS,
+        enabled=RATE_LIMIT_ENABLED,
+    )
     retry_source = RetryingMarketDataSource(
         provider,
         max_attempts=RETRY_MAX_ATTEMPTS if RETRY_ENABLED else 1,
@@ -75,6 +90,8 @@ def main(arguments=None):
 
     print(f"Selected {len(universe)} tickers for analysis")
     print(f"Concurrent downloads: {MAX_CONCURRENT_DOWNLOADS}")
+    print(f"Metadata workers: {METADATA_CONCURRENT_DOWNLOADS}")
+    print(f"Price workers: {PRICE_CONCURRENT_DOWNLOADS}")
     print(f"Run ID: {run_state.run_id}")
     print(f"Resumed results: {len(prior_results)}")
 
@@ -82,6 +99,8 @@ def main(arguments=None):
         source,
         benchmarks=BENCHMARKS,
         max_workers=MAX_CONCURRENT_DOWNLOADS,
+        metadata_workers=METADATA_CONCURRENT_DOWNLOADS,
+        price_workers=PRICE_CONCURRENT_DOWNLOADS,
         progress_callback=print_progress,
         result_callback=run_state.record_result,
     )
@@ -92,17 +111,15 @@ def main(arguments=None):
 
     passed = sum(1 for r in results if r.get("status") == "OK")
     filtered = sum(1 for r in results if r.get("status") == "FILTERED")
-    failed = sum(
-        1
-        for r in results
-        if r.get("status") not in {"OK", "FILTERED"}
-    )
+    scoring_failed = sum(1 for r in results if r.get("status") == "FAILED")
+    errors = sum(1 for r in results if r.get("status") == "ERROR")
 
     print("\nRun Summary")
     print(f"Total: {len(results)}")
     print(f"Passed: {passed}")
     print(f"Filtered: {filtered}")
-    print(f"Failed: {failed}")
+    print(f"Scoring failed: {scoring_failed}")
+    print(f"Errors: {errors}")
     if source.enabled:
         print(f"Cache hits: {source.stats.hits}")
         print(f"Cache misses: {source.stats.misses}")
@@ -110,8 +127,15 @@ def main(arguments=None):
         print(f"Cache read errors: {source.stats.read_errors}")
     print(f"Provider retries: {retry_source.stats.retries}")
     print(f"Retries exhausted: {retry_source.stats.exhausted}")
+    if provider.enabled:
+        print(f"Pacing waits: {provider.stats.pacing_waits}")
+        print(f"Rate-limit cooldowns: {provider.stats.cooldown_events}")
+        print(f"Cooldown waits: {provider.stats.cooldown_waits}")
+        print(f"Circuit opened: {provider.stats.circuit_open_events}")
+        print(f"Circuit rejections: {provider.stats.circuit_rejections}")
 
     print("\nDone.")
+    print(f"Run status: {run_state.manifest['status']}")
     print(f"Report saved to: {output_path}")
     print(f"Manifest saved to: {run_state.manifest_path}")
 

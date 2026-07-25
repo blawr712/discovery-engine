@@ -35,6 +35,8 @@ class DiscoveryEngine:
         source: MarketDataSource,
         benchmarks: dict[str, str],
         max_workers: int = 5,
+        metadata_workers: int | None = None,
+        price_workers: int | None = None,
         progress_callback: ProgressCallback | None = None,
         result_callback: ResultCallback | None = None,
     ) -> None:
@@ -43,9 +45,24 @@ class DiscoveryEngine:
         if max_workers < 1:
             raise ValueError("max_workers must be at least 1.")
 
+        if metadata_workers is None:
+            metadata_workers = max_workers
+        if price_workers is None:
+            price_workers = max_workers
+        for name, value in (
+            ("metadata_workers", metadata_workers),
+            ("price_workers", price_workers),
+        ):
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise TypeError(f"{name} must be an integer.")
+            if value < 1:
+                raise ValueError(f"{name} must be at least 1.")
+
         self.source = source
         self.benchmarks = benchmarks
         self.max_workers = max_workers
+        self.metadata_workers = metadata_workers
+        self.price_workers = price_workers
         self.progress_callback = progress_callback
         self.result_callback = result_callback
 
@@ -91,7 +108,7 @@ class DiscoveryEngine:
     ) -> list[Candidate]:
         candidates: list[Candidate] = []
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=self.metadata_workers) as executor:
             futures = {
                 executor.submit(self._prepare_candidate, index, item): (
                     index,
@@ -194,7 +211,7 @@ class DiscoveryEngine:
             else:
                 ready.append(candidate)
 
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=self.price_workers) as executor:
             futures: dict[Future, Candidate] = {
                 executor.submit(
                     self._score_candidate,

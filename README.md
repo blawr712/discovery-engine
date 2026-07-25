@@ -10,6 +10,7 @@ Discovery Engine is a modular Python platform that analyzes the North American e
 
 The project now applies an explainable metadata pre-filter, persistent cache,
 bounded concurrent collection, transient retry/backoff, and resumable runs.
+Provider calls are globally paced, and partial runs can retry unresolved errors.
 
 ## Core Principles
 
