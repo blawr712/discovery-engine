@@ -20,7 +20,9 @@ United States
 - NYSE
 - AMEX
 
-Target mix: 60% Canada / 40% United States.
+Coverage policy: include every supported listing that meets the configured
+eligibility rules. Country proportions reflect the available market universe;
+they are descriptive, not sampling quotas.
 
 ## Preferred Market Cap
 

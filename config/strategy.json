@@ -1,14 +1,11 @@
 {
     "project": {
         "name": "Discovery Engine",
-        "version": "1.0.0"
+        "version": "0.2.0"
     },
 
     "universe": {
-        "country_split": {
-            "CA": 0.60,
-            "US": 0.40
-        },
+        "coverage_policy": "all_supported_listings",
 
         "market_cap": {
             "minimum": 10000000,

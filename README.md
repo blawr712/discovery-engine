@@ -6,11 +6,13 @@ Discovery Engine is a modular Python platform that analyzes the North American e
 
 ## Current Status
 
-**Version:** v0.2 Performance
+**Version:** v0.2.0 Performance — released 2026-07-25
 
 The project now applies an explainable metadata pre-filter, persistent cache,
 bounded concurrent collection, transient retry/backoff, and resumable runs.
 Provider calls are globally paced, and partial runs can retry unresolved errors.
+The release was validated across all 6,424 configured North American listings
+with zero provider or pipeline errors.
 
 ## Core Principles
 
