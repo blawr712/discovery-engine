@@ -12,6 +12,7 @@ from src.config import (
     CACHE_DIR,
     CACHE_ENABLED,
     CACHE_METADATA_TTL_HOURS,
+    CACHE_METADATA_VERSION,
     CACHE_PRICE_HISTORY_TTL_HOURS,
     MAX_CONCURRENT_DOWNLOADS,
     METADATA_CONCURRENT_DOWNLOADS,
@@ -65,6 +66,7 @@ def main(arguments=None):
         retry_source,
         cache_directory=CACHE_DIR,
         metadata_ttl_hours=CACHE_METADATA_TTL_HOURS,
+        metadata_version=CACHE_METADATA_VERSION,
         price_history_ttl_hours=CACHE_PRICE_HISTORY_TTL_HOURS,
         enabled=CACHE_ENABLED,
     )

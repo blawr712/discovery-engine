@@ -1,7 +1,38 @@
 {
     "project": {
         "name": "Discovery Engine",
-        "version": "0.2.0"
+        "version": "0.3.0-dev"
+    },
+
+    "asset_classification": {
+        "excluded_quote_types": [
+            "ETF",
+            "MUTUALFUND",
+            "INDEX",
+            "FUTURE",
+            "OPTION",
+            "CRYPTOCURRENCY"
+        ],
+        "excluded_industries": [
+            "Shell Companies"
+        ],
+        "name_rules": [
+            {
+                "pattern": "\\b(acquisition|acquisitions) (corp(oration)?|co(mpany)?)\\b",
+                "asset_type": "acquisition_vehicle",
+                "reason": "Acquisition or SPAC vehicle"
+            },
+            {
+                "pattern": "\\b(blank check|special purpose acquisition|SPAC)\\b",
+                "asset_type": "acquisition_vehicle",
+                "reason": "Acquisition or SPAC vehicle"
+            },
+            {
+                "pattern": "\\b(warrant|warrants|rights|units|preferred shares?)\\b",
+                "asset_type": "non_common_equity",
+                "reason": "Non-common-equity security"
+            }
+        ]
     },
 
     "universe": {
@@ -24,6 +55,59 @@
         "market_cap": 15,
         "sector_bonus": 10,
         "liquidity": 10
+    },
+
+    "fundamental_weights": {
+        "revenue_growth": 10,
+        "earnings_growth": 8,
+        "profitability": 8,
+        "free_cash_flow": 7,
+        "balance_sheet": 7
+    },
+
+    "fundamental_scoring": {
+        "revenue_growth": {
+            "thresholds": [
+                {"minimum": 0.30, "points_ratio": 1.00},
+                {"minimum": 0.15, "points_ratio": 0.80},
+                {"minimum": 0.05, "points_ratio": 0.50},
+                {"minimum": 0.00, "points_ratio": 0.20},
+                {"minimum": -1000, "points_ratio": 0.00}
+            ]
+        },
+        "earnings_growth": {
+            "thresholds": [
+                {"minimum": 0.30, "points_ratio": 1.00},
+                {"minimum": 0.15, "points_ratio": 0.80},
+                {"minimum": 0.05, "points_ratio": 0.50},
+                {"minimum": 0.00, "points_ratio": 0.20},
+                {"minimum": -1000, "points_ratio": 0.00}
+            ]
+        },
+        "profitability": {
+            "thresholds": [
+                {"minimum": 0.20, "points_ratio": 1.00},
+                {"minimum": 0.10, "points_ratio": 0.75},
+                {"minimum": 0.00, "points_ratio": 0.40},
+                {"minimum": -1000, "points_ratio": 0.00}
+            ]
+        },
+        "free_cash_flow": {
+            "thresholds": [
+                {"minimum": 0.10, "points_ratio": 1.00},
+                {"minimum": 0.05, "points_ratio": 0.75},
+                {"minimum": 0.00, "points_ratio": 0.40},
+                {"minimum": -1000, "points_ratio": 0.00}
+            ]
+        },
+        "balance_sheet": {
+            "thresholds": [
+                {"minimum": 0.20, "points_ratio": 1.00},
+                {"minimum": 0.00, "points_ratio": 0.70},
+                {"minimum": -0.25, "points_ratio": 0.40},
+                {"minimum": -1000, "points_ratio": 0.00}
+            ]
+        }
     },
 
     "sector_bonus": {

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3 Intelligence (in progress)
+
+- Added the v0.3 specification and staged acceptance criteria
+- Added configuration-driven structural asset classification
+- Exclude obvious acquisition vehicles, shell companies, and non-equities
+- Added explainable factor results, score confidence, and JSON breakdowns
+- Preserved v0.2 numerical scoring during the framework transition
+- Added versioned metadata caching for expanded provider fields
+- Added shadow growth, profitability, cash-flow, and balance-sheet factors
+- Added fundamental score, normalized score, confidence, and JSON breakdown
+
 ## v0.2.0 Performance — 2026-07-25
 
 Validated against the complete 6,424-company North American universe:

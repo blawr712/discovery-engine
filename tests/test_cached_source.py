@@ -134,6 +134,31 @@ class CachedMarketDataSourceTests(unittest.TestCase):
                 metadata_ttl_hours=-1,
             )
 
+    def test_metadata_version_invalidates_old_schema_entries(self):
+        first = CachedMarketDataSource(
+            self.provider,
+            self.cache_directory,
+            metadata_version="v1",
+        )
+        second = CachedMarketDataSource(
+            self.provider,
+            self.cache_directory,
+            metadata_version="v2",
+        )
+
+        first.get_stock_data("TEST")
+        second.get_stock_data("TEST")
+
+        self.assertEqual(self.provider.metadata_calls, 2)
+
+    def test_rejects_empty_metadata_version(self):
+        with self.assertRaises(ValueError):
+            CachedMarketDataSource(
+                self.provider,
+                self.cache_directory,
+                metadata_version=" ",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

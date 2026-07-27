@@ -28,6 +28,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CACHE_CONFIG = SETTINGS.get("cache", {})
 CACHE_ENABLED = CACHE_CONFIG.get("enabled", True)
+CACHE_METADATA_VERSION = CACHE_CONFIG.get("metadata_version", "v1")
 CACHE_METADATA_TTL_HOURS = CACHE_CONFIG.get("metadata_ttl_hours", 168)
 CACHE_PRICE_HISTORY_TTL_HOURS = CACHE_CONFIG.get(
     "price_history_ttl_hours",
@@ -92,3 +93,6 @@ MAX_MARKET_CAP = MARKET_CAP_CONFIG["maximum"]
 SECTOR_BONUSES = STRATEGY["sector_bonus"]
 WEIGHTS = STRATEGY["weights"]
 SCORING_CONFIG = STRATEGY["scoring"]
+ASSET_CLASSIFICATION_CONFIG = STRATEGY.get("asset_classification", {})
+FUNDAMENTAL_WEIGHTS = STRATEGY.get("fundamental_weights", {})
+FUNDAMENTAL_SCORING_CONFIG = STRATEGY.get("fundamental_scoring", {})

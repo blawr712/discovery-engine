@@ -38,6 +38,18 @@ class PreFilterTests(unittest.TestCase):
         self.assertEqual(row["discovery_score"], 0)
         self.assertEqual(row["reason_flags"], "Missing market cap")
 
+    def test_structural_exclusion_precedes_market_cap_checks(self):
+        result = evaluate_stock(
+            {
+                "company_name": "Example Acquisition Corp.",
+                "market_cap": None,
+            }
+        )
+
+        self.assertFalse(result.passed)
+        self.assertEqual(result.asset_type, "acquisition_vehicle")
+        self.assertEqual(result.reason, "Acquisition or SPAC vehicle")
+
 
 if __name__ == "__main__":
     unittest.main()

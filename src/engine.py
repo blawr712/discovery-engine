@@ -148,6 +148,10 @@ class DiscoveryEngine:
         ticker = str(item["ticker"])
         stock_data = self.source.get_stock_data(ticker)
         pre_filter = evaluate_stock(stock_data)
+        stock_data = {
+            **stock_data,
+            "asset_type": pre_filter.asset_type,
+        }
 
         if not pre_filter.passed:
             return None, filtered_result(

@@ -35,6 +35,7 @@ class CachedMarketDataSource(MarketDataSource):
         source: MarketDataSource,
         cache_directory: Path,
         metadata_ttl_hours: float = 168,
+        metadata_version: str = "v1",
         price_history_ttl_hours: float = 24,
         enabled: bool = True,
         clock: Callable[[], float] = time.time,
@@ -45,6 +46,9 @@ class CachedMarketDataSource(MarketDataSource):
         self.source = source
         self.cache_directory = Path(cache_directory)
         self.metadata_ttl_seconds = metadata_ttl_hours * 60 * 60
+        self.metadata_version = str(metadata_version).strip()
+        if not self.metadata_version:
+            raise ValueError("metadata_version cannot be empty.")
         self.price_history_ttl_seconds = price_history_ttl_hours * 60 * 60
         self.enabled = enabled
         self.clock = clock
@@ -60,7 +64,11 @@ class CachedMarketDataSource(MarketDataSource):
         if not self.enabled:
             return self.source.get_stock_data(ticker)
 
-        path = self._cache_path("metadata", ticker, "json")
+        path = self._cache_path(
+            "metadata",
+            f"{self.metadata_version}|{ticker}",
+            "json",
+        )
         cached = self._read_json(path, self.metadata_ttl_seconds)
 
         if cached is not None:

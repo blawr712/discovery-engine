@@ -1,6 +1,13 @@
 import numpy as np
 import pandas as pd
 
+from src.factors import (
+    FactorResult,
+    score_confidence,
+    serialize_factor_breakdown,
+)
+from src.fundamental_scoring import calculate_fundamental_scores
+
 from src.config import (
     SWEET_SPOT_MIN,
     SWEET_SPOT_MAX,
@@ -41,6 +48,20 @@ def calculate_scores(
     sector_score = score_sector_bonus(sector)
     liquidity_score = score_liquidity(price_history)
 
+    factors = _build_factor_results(
+        volume_score=volume_score,
+        volume_ratio=volume_ratio,
+        relative_strength_score=relative_strength_score,
+        relative_strength=relative_strength,
+        trend_score=trend_score,
+        market_cap_score=market_cap_score,
+        market_cap=market_cap,
+        sector_score=sector_score,
+        sector=sector,
+        liquidity_score=liquidity_score,
+        price_history=price_history,
+    )
+
     discovery_score = (
         volume_score
         + relative_strength_score
@@ -58,8 +79,11 @@ def calculate_scores(
         sector=sector,
     )
 
+    fundamental_scores = calculate_fundamental_scores(stock_data)
+
     return {
         **stock_data,
+        **fundamental_scores,
         "volume_score": volume_score,
         "volume_ratio": round(volume_ratio, 2) if volume_ratio is not None else None,
         "relative_strength_score": relative_strength_score,
@@ -71,6 +95,8 @@ def calculate_scores(
         "sector_score": sector_score,
         "liquidity_score": liquidity_score,
         "discovery_score": round(discovery_score, 2),
+        "score_confidence": score_confidence(factors),
+        "factor_breakdown": serialize_factor_breakdown(factors),
         "reason_flags": "; ".join(reason_flags),
         "status": "OK",
     }
@@ -186,10 +212,7 @@ def score_sector_bonus(sector: str | None) -> float:
 
 def score_liquidity(df: pd.DataFrame) -> float:
     max_points = WEIGHTS["liquidity"]
-
-    avg_volume_30 = df["Volume"].tail(30).mean()
-    avg_price_30 = df["Close"].tail(30).mean()
-    avg_dollar_volume = avg_volume_30 * avg_price_30
+    avg_dollar_volume = _average_dollar_volume(df)
 
     if avg_dollar_volume >= 5_000_000:
         return max_points
@@ -198,6 +221,106 @@ def score_liquidity(df: pd.DataFrame) -> float:
     if avg_dollar_volume >= 250_000:
         return max_points * 0.40
     return 0
+
+
+def _build_factor_results(
+    volume_score: float,
+    volume_ratio: float | None,
+    relative_strength_score: float,
+    relative_strength: float | None,
+    trend_score: float,
+    market_cap_score: float,
+    market_cap: int | float,
+    sector_score: float,
+    sector: str | None,
+    liquidity_score: float,
+    price_history: pd.DataFrame,
+) -> list[FactorResult]:
+    """Describe the existing v0.2 score through the v0.3 factor model."""
+    trend_max = WEIGHTS["trend_strength"]
+    trend_label = (
+        "strong"
+        if trend_score == trend_max
+        else "mixed"
+        if trend_score > 0
+        else "weak"
+    )
+    average_dollar_volume = _average_dollar_volume(price_history)
+
+    return [
+        FactorResult(
+            name="volume_acceleration",
+            raw_value=volume_ratio,
+            points=volume_score,
+            max_points=WEIGHTS["volume_acceleration"],
+            available=volume_ratio is not None,
+            explanation=(
+                f"30-day volume is {volume_ratio:.2f}x the 90-day average"
+                if volume_ratio is not None
+                else "Volume history unavailable"
+            ),
+        ),
+        FactorResult(
+            name="relative_strength",
+            raw_value=relative_strength,
+            points=relative_strength_score,
+            max_points=WEIGHTS["relative_strength"],
+            available=relative_strength is not None,
+            explanation=(
+                f"Six-month return exceeds benchmark by {relative_strength:.2f}%"
+                if relative_strength is not None
+                else "Benchmark-relative return unavailable"
+            ),
+        ),
+        FactorResult(
+            name="trend_strength",
+            raw_value=trend_label,
+            points=trend_score,
+            max_points=trend_max,
+            available=True,
+            explanation=f"Price trend is {trend_label}",
+        ),
+        FactorResult(
+            name="market_cap",
+            raw_value=market_cap,
+            points=market_cap_score,
+            max_points=WEIGHTS["market_cap"],
+            available=True,
+            explanation=f"Market capitalization is {market_cap:,.0f}",
+        ),
+        FactorResult(
+            name="sector_bonus",
+            raw_value=sector,
+            points=sector_score,
+            max_points=WEIGHTS["sector_bonus"],
+            available=bool(sector),
+            explanation=(
+                f"Configured sector classification: {sector}"
+                if sector
+                else "Sector classification unavailable"
+            ),
+        ),
+        FactorResult(
+            name="liquidity",
+            raw_value=average_dollar_volume,
+            points=liquidity_score,
+            max_points=WEIGHTS["liquidity"],
+            available=not np.isnan(average_dollar_volume),
+            explanation=(
+                f"30-day average dollar volume is {average_dollar_volume:,.0f}"
+                if not np.isnan(average_dollar_volume)
+                else "Liquidity history unavailable"
+            ),
+        ),
+    ]
+
+
+def _average_dollar_volume(df: pd.DataFrame) -> float:
+    if df.empty or "Volume" not in df or "Close" not in df:
+        return float("nan")
+    avg_volume_30 = df["Volume"].tail(30).mean()
+    avg_price_30 = df["Close"].tail(30).mean()
+    return float(avg_volume_30 * avg_price_30)
 
 
 def build_reason_flags(
@@ -244,8 +367,10 @@ def _period_return(df: pd.DataFrame, days: int) -> float | None:
 
 
 def _failed_score(stock_data: dict, reason: str) -> dict:
+    fundamental_scores = calculate_fundamental_scores(stock_data)
     return {
         **stock_data,
+        **fundamental_scores,
         "volume_score": 0,
         "volume_ratio": None,
         "relative_strength_score": 0,
@@ -255,6 +380,8 @@ def _failed_score(stock_data: dict, reason: str) -> dict:
         "sector_score": 0,
         "liquidity_score": 0,
         "discovery_score": 0,
+        "score_confidence": 0,
+        "factor_breakdown": "{}",
         "reason_flags": reason,
         "status": "FAILED",
     }
