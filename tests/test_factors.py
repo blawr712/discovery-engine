@@ -33,6 +33,15 @@ class FactorResultTests(unittest.TestCase):
         self.assertEqual(score_confidence(factors), 25.0)
         self.assertEqual(score_confidence([]), 0.0)
 
+    def test_confidence_discounts_undated_and_rejects_stale_data(self):
+        factors = [
+            FactorResult("fresh", 1, 5, 10, True, "fresh", "fresh"),
+            FactorResult("undated", 1, 5, 10, True, "undated", "undated"),
+            FactorResult("stale", 1, 0, 10, False, "stale", "stale"),
+        ]
+
+        self.assertEqual(score_confidence(factors), 58.33)
+
 
 if __name__ == "__main__":
     unittest.main()

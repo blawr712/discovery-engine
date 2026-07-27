@@ -62,7 +62,18 @@
         "earnings_growth": 8,
         "profitability": 8,
         "free_cash_flow": 7,
-        "balance_sheet": 7
+        "balance_sheet": 7,
+        "earnings_yield": 5,
+        "sales_yield": 4,
+        "enterprise_value_ebitda": 4,
+        "liquidity": 4,
+        "leverage": 4,
+        "earnings_quality": 4
+    },
+
+    "fundamental_data_policy": {
+        "maximum_age_days": 550,
+        "undated_confidence_ratio": 0.75
     },
 
     "fundamental_scoring": {
@@ -105,6 +116,56 @@
                 {"minimum": 0.20, "points_ratio": 1.00},
                 {"minimum": 0.00, "points_ratio": 0.70},
                 {"minimum": -0.25, "points_ratio": 0.40},
+                {"minimum": -1000, "points_ratio": 0.00}
+            ]
+        },
+        "earnings_yield": {
+            "thresholds": [
+                {"minimum": 0.10, "points_ratio": 1.00},
+                {"minimum": 0.05, "points_ratio": 0.75},
+                {"minimum": 0.00, "points_ratio": 0.35},
+                {"minimum": -1000, "points_ratio": 0.00}
+            ]
+        },
+        "sales_yield": {
+            "thresholds": [
+                {"minimum": 1.00, "points_ratio": 1.00},
+                {"minimum": 0.50, "points_ratio": 0.75},
+                {"minimum": 0.20, "points_ratio": 0.40},
+                {"minimum": 0.00, "points_ratio": 0.10}
+            ]
+        },
+        "enterprise_value_ebitda": {
+            "direction": "lower",
+            "thresholds": [
+                {"maximum": 8.0, "points_ratio": 1.00},
+                {"maximum": 15.0, "points_ratio": 0.70},
+                {"maximum": 25.0, "points_ratio": 0.35},
+                {"maximum": 1000000, "points_ratio": 0.00}
+            ]
+        },
+        "liquidity": {
+            "thresholds": [
+                {"minimum": 2.0, "points_ratio": 1.00},
+                {"minimum": 1.25, "points_ratio": 0.70},
+                {"minimum": 1.0, "points_ratio": 0.35},
+                {"minimum": -1000, "points_ratio": 0.00}
+            ]
+        },
+        "leverage": {
+            "direction": "lower",
+            "thresholds": [
+                {"maximum": 25.0, "points_ratio": 1.00},
+                {"maximum": 75.0, "points_ratio": 0.70},
+                {"maximum": 150.0, "points_ratio": 0.35},
+                {"maximum": 1000000, "points_ratio": 0.00}
+            ]
+        },
+        "earnings_quality": {
+            "thresholds": [
+                {"minimum": 1.25, "points_ratio": 1.00},
+                {"minimum": 1.0, "points_ratio": 0.75},
+                {"minimum": 0.5, "points_ratio": 0.35},
                 {"minimum": -1000, "points_ratio": 0.00}
             ]
         }

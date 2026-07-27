@@ -32,6 +32,9 @@ class YFinanceSource(MarketDataSource):
             "enterprise_to_ebitda": info.get("enterpriseToEbitda"),
             "trailing_pe": info.get("trailingPE"),
             "price_to_sales": info.get("priceToSalesTrailing12Months"),
+            "debt_to_equity": info.get("debtToEquity"),
+            "net_income": info.get("netIncomeToCommon"),
+            "fundamental_data_timestamp": info.get("mostRecentQuarter"),
         }
 
     def get_price_history(self, ticker: str, period: str = "1y") -> pd.DataFrame:

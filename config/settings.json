@@ -22,7 +22,7 @@
 
     "cache": {
         "enabled": true,
-        "metadata_version": "v0.3-fundamentals-1",
+        "metadata_version": "v0.3-fundamentals-2",
         "metadata_ttl_hours": 168,
         "price_history_ttl_hours": 24
     },

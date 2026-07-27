@@ -27,6 +27,7 @@ class AnalyticsTests(unittest.TestCase):
                 "discovery_score": 60,
                 "fundamental_score_normalized": 80,
                 "fundamental_confidence": 100,
+                "fundamental_data_quality": "fresh",
                 "fundamental_breakdown": fundamental_breakdown(),
             },
             {
@@ -38,6 +39,7 @@ class AnalyticsTests(unittest.TestCase):
                 "discovery_score": 40,
                 "fundamental_score_normalized": 50,
                 "fundamental_confidence": 50,
+                "fundamental_data_quality": "undated",
                 "fundamental_breakdown": fundamental_breakdown(True, False),
             },
             {
@@ -74,6 +76,10 @@ class AnalyticsTests(unittest.TestCase):
         self.assertEqual(
             analytics["score_distributions"]["discovery_score"]["median"],
             50.0,
+        )
+        self.assertEqual(
+            analytics["fundamental_data_quality"],
+            {"fresh": 1, "undated": 1},
         )
 
     def test_exports_json_artifact(self):

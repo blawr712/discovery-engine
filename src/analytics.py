@@ -30,6 +30,10 @@ def build_run_analytics(results: list[dict]) -> dict:
             not in {None, "unknown", "operating_equity"}
         ),
         "fundamental_confidence_buckets": _confidence_buckets(successful),
+        "fundamental_data_quality": _counts(
+            successful,
+            "fundamental_data_quality",
+        ),
         "factor_coverage": _factor_coverage(successful),
         "coverage_by_country": _coverage_by_dimension(successful, "country"),
         "coverage_by_sector": _coverage_by_dimension(successful, "sector"),

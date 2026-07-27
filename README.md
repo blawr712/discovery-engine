@@ -6,7 +6,7 @@ Discovery Engine is a modular Python platform that analyzes the North American e
 
 ## Current Status
 
-**Version:** v0.3 Intelligence — Sprint 1 in progress
+**Version:** v0.3 Intelligence — Sprint 2 in progress
 
 The project now applies an explainable metadata pre-filter, persistent cache,
 bounded concurrent collection, transient retry/backoff, and resumable runs.
@@ -17,7 +17,9 @@ with zero provider or pipeline errors.
 v0.3 is introducing structural asset classification, explainable factor
 results, score confidence, enhanced financial signals, and research reporting.
 Fundamental factors currently run in shadow mode so their coverage and score
-distributions can be validated before ranking weights change.
+distributions can be validated before ranking weights change. Valuation and
+risk factors follow explicit data-quality rules: stale and invalid inputs do
+not score, while usable undated inputs reduce confidence.
 
 ## Core Principles
 

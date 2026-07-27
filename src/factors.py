@@ -17,6 +17,8 @@ class FactorResult:
     max_points: float
     available: bool
     explanation: str
+    data_quality: str = "fresh"
+    as_of: str | None = None
 
     def to_dict(self) -> dict:
         """Return a JSON-safe representation for reports and checkpoints."""
@@ -32,12 +34,22 @@ class FactorResult:
 
 
 def score_confidence(factors: list[FactorResult]) -> float:
-    """Return the percentage of configured factor weight with usable data."""
+    """Return quality-adjusted configured weight with usable data."""
     total_weight = sum(factor.max_points for factor in factors)
     if total_weight <= 0:
         return 0.0
+    from src.config import FUNDAMENTAL_DATA_POLICY
+
+    quality_ratios = {
+        "fresh": 1.0,
+        "undated": float(
+            FUNDAMENTAL_DATA_POLICY.get("undated_confidence_ratio", 0.75)
+        ),
+    }
     available_weight = sum(
-        factor.max_points for factor in factors if factor.available
+        factor.max_points * quality_ratios.get(factor.data_quality, 0.0)
+        for factor in factors
+        if factor.available
     )
     return round((available_weight / total_weight) * 100, 2)
 

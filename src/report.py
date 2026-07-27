@@ -77,6 +77,8 @@ def export_candidate_report(
                 "fundamental_score": row.get("fundamental_score"),
                 "fundamental_score_normalized": row.get("fundamental_score_normalized"),
                 "fundamental_confidence": row.get("fundamental_confidence"),
+                "fundamental_data_quality": row.get("fundamental_data_quality"),
+                "fundamental_data_as_of": row.get("fundamental_data_as_of"),
                 "strongest_signals": strengths,
                 "principal_risks": risks,
                 "reason_flags": row.get("reason_flags"),
@@ -90,6 +92,7 @@ def export_candidate_report(
         "exchange", "sector", "industry", "asset_type", "market_cap",
         "discovery_score", "score_confidence", "fundamental_score",
         "fundamental_score_normalized", "fundamental_confidence",
+        "fundamental_data_quality", "fundamental_data_as_of",
         "strongest_signals", "principal_risks", "reason_flags",
         "factor_breakdown", "fundamental_breakdown",
     ]
