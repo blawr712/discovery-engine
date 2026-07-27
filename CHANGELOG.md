@@ -17,6 +17,10 @@
 - Added shadow liquidity, leverage, and earnings-quality risk factors
 - Added formal fresh, undated, missing, invalid, and stale data policies
 - Added quality-adjusted fundamental confidence and report provenance
+- Added officially ordered calibration CSV and aggregate analysis JSON
+- Added country, sector, technical, and fundamental candidate percentiles
+- Added rank correlation, top-list overlap, disagreement, and outlier analysis
+- Added configurable 100/0, 80/20, and 70/30 experimental blend scenarios
 
 ## v0.2.0 Performance — 2026-07-25
 

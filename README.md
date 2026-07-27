@@ -49,6 +49,11 @@ Each completed run exports a full diagnostic report, a curated top-candidate
 report, and JSON coverage analytics. Balanced samples deterministically
 interleave Canadian and U.S. listings for representative validation.
 
+Runs also export an officially ordered calibration CSV and a JSON calibration
+summary. These include relative percentiles, factor distributions, rank
+correlation, top-list overlap, outliers, low-confidence flags, and experimental
+blend scenarios. Experimental ranks never change the official candidate order.
+
 ## Documentation
 
 - PROJECT_CONTEXT.md

@@ -200,5 +200,37 @@
     "reports": {
         "top_stocks": 100,
         "export_format": "csv"
+    },
+
+    "calibration": {
+        "top_n": 100,
+        "low_confidence_threshold": 50,
+        "blend_scenarios": {
+            "technical_100": {
+                "technical_weight": 1.0,
+                "fundamental_weight": 0.0
+            },
+            "technical_80_fundamental_20": {
+                "technical_weight": 0.8,
+                "fundamental_weight": 0.2
+            },
+            "technical_70_fundamental_30": {
+                "technical_weight": 0.7,
+                "fundamental_weight": 0.3
+            }
+        },
+        "outlier_bounds": {
+            "revenue_growth": {"minimum": -1.0, "maximum": 10.0},
+            "earnings_growth": {"minimum": -1.0, "maximum": 10.0},
+            "profitability": {"minimum": -5.0, "maximum": 1.0},
+            "free_cash_flow": {"minimum": -10.0, "maximum": 10.0},
+            "balance_sheet": {"minimum": -10.0, "maximum": 10.0},
+            "earnings_yield": {"minimum": 0.0, "maximum": 1.0},
+            "sales_yield": {"minimum": 0.0, "maximum": 10.0},
+            "enterprise_value_ebitda": {"minimum": 0.0, "maximum": 100.0},
+            "liquidity": {"minimum": 0.0, "maximum": 50.0},
+            "leverage": {"minimum": 0.0, "maximum": 1000.0},
+            "earnings_quality": {"minimum": -20.0, "maximum": 20.0}
+        }
     }
 }

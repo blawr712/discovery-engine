@@ -128,6 +128,8 @@ class RunStateTests(unittest.TestCase):
             "final.csv",
             candidate_report_path="candidates.csv",
             analytics_path="analytics.json",
+            calibration_csv_path="calibration.csv",
+            calibration_json_path="calibration.json",
         )
 
         with state.manifest_path.open("r", encoding="utf-8") as file:
@@ -137,6 +139,14 @@ class RunStateTests(unittest.TestCase):
         self.assertEqual(manifest["report_path"], "final.csv")
         self.assertEqual(manifest["candidate_report_path"], "candidates.csv")
         self.assertEqual(manifest["analytics_path"], "analytics.json")
+        self.assertEqual(
+            manifest["calibration_csv_path"],
+            "calibration.csv",
+        )
+        self.assertEqual(
+            manifest["calibration_json_path"],
+            "calibration.json",
+        )
         self.assertEqual(manifest["summary"]["statuses"], {"ERROR": 1, "OK": 1})
         self.assertEqual(manifest["summary"]["failure_stages"], {"Metadata": 1})
 

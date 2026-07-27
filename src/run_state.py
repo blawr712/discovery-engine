@@ -81,6 +81,8 @@ class RunState:
                 manifest["report_path"] = None
                 manifest["candidate_report_path"] = None
                 manifest["analytics_path"] = None
+                manifest["calibration_csv_path"] = None
+                manifest["calibration_json_path"] = None
                 manifest["resume_count"] = manifest.get("resume_count", 0) + 1
                 state = cls(
                     run_directory,
@@ -111,6 +113,8 @@ class RunState:
             "report_path": None,
             "candidate_report_path": None,
             "analytics_path": None,
+            "calibration_csv_path": None,
+            "calibration_json_path": None,
             "resume_count": 0,
         }
         state = cls(run_directory, manifest, clock)
@@ -160,6 +164,8 @@ class RunState:
         report_path: str,
         candidate_report_path: str | None = None,
         analytics_path: str | None = None,
+        calibration_csv_path: str | None = None,
+        calibration_json_path: str | None = None,
     ) -> None:
         """Mark the run complete and add aggregate manifest statistics."""
         completed_at = self.clock()
@@ -182,6 +188,8 @@ class RunState:
                 "report_path": report_path,
                 "candidate_report_path": candidate_report_path,
                 "analytics_path": analytics_path,
+                "calibration_csv_path": calibration_csv_path,
+                "calibration_json_path": calibration_json_path,
             }
         )
         self._write_manifest()

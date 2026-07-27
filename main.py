@@ -5,6 +5,7 @@ from src.data_sources.retrying_source import RetryingMarketDataSource
 from src.data_sources.rate_limited_source import RateLimitedMarketDataSource
 from src.report import export_candidate_report, export_report
 from src.analytics import export_run_analytics
+from src.calibration import export_calibration
 from src.engine import DiscoveryEngine
 from src.run_state import RunState, build_run_fingerprint
 from src.cli import parse_args, select_universe
@@ -121,11 +122,18 @@ def main(arguments=None):
         run_id=run_state.run_id,
         output_directory=OUTPUT_DIR,
     )
+    calibration_csv_path, calibration_json_path = export_calibration(
+        results,
+        run_id=run_state.run_id,
+        output_directory=OUTPUT_DIR,
+    )
     run_state.complete(
         results,
         output_path,
         candidate_report_path=candidate_output_path,
         analytics_path=analytics_output_path,
+        calibration_csv_path=calibration_csv_path,
+        calibration_json_path=calibration_json_path,
     )
 
     passed = sum(1 for r in results if r.get("status") == "OK")
@@ -158,6 +166,8 @@ def main(arguments=None):
     print(f"Report saved to: {output_path}")
     print(f"Candidate report saved to: {candidate_output_path}")
     print(f"Analytics saved to: {analytics_output_path}")
+    print(f"Calibration rows saved to: {calibration_csv_path}")
+    print(f"Calibration analysis saved to: {calibration_json_path}")
     print(f"Manifest saved to: {run_state.manifest_path}")
 
 
