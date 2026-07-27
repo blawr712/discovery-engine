@@ -10,6 +10,9 @@
 - Added versioned metadata caching for expanded provider fields
 - Added shadow growth, profitability, cash-flow, and balance-sheet factors
 - Added fundamental score, normalized score, confidence, and JSON breakdown
+- Added curated top-candidate reports with separate fundamental ranking
+- Added factor coverage, confidence, exclusion, country, and sector analytics
+- Added deterministic interleaved Canadian/U.S. validation sampling
 
 ## v0.2.0 Performance — 2026-07-25
 

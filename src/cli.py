@@ -24,6 +24,12 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         metavar="COUNT",
         help="analyze only the first COUNT universe entries",
     )
+    selection.add_argument(
+        "--balanced-sample",
+        type=_positive_integer,
+        metavar="PER_COUNTRY",
+        help="interleave up to PER_COUNTRY Canadian and U.S. listings",
+    )
     return parser.parse_args(arguments)
 
 
@@ -31,10 +37,36 @@ def select_universe(
     universe: list[dict],
     tickers: list[str] | None = None,
     limit: int | None = None,
+    balanced_sample: int | None = None,
 ) -> list[dict]:
     """Select a reproducible subset while retaining universe metadata."""
-    if tickers is not None and limit is not None:
-        raise ValueError("tickers and limit cannot be used together")
+    selections = sum(
+        value is not None for value in (tickers, limit, balanced_sample)
+    )
+    if selections > 1:
+        raise ValueError("ticker, limit, and balanced sample options cannot be combined")
+
+    if balanced_sample is not None:
+        if (
+            isinstance(balanced_sample, bool)
+            or not isinstance(balanced_sample, int)
+            or balanced_sample < 1
+        ):
+            raise ValueError("balanced sample must be a positive integer")
+        by_country = {
+            country: [
+                item
+                for item in universe
+                if str(item.get("country", "")).upper() == country
+            ][:balanced_sample]
+            for country in ("CA", "US")
+        }
+        selected = []
+        for index in range(max(len(group) for group in by_country.values())):
+            for country in ("CA", "US"):
+                if index < len(by_country[country]):
+                    selected.append(by_country[country][index])
+        return selected
 
     if limit is not None:
         if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:

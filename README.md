@@ -40,7 +40,12 @@ Run a controlled smoke test by ticker or universe size:
 ```powershell
 python main.py --tickers DCBO.TO WELL.TO SOFI IONQ RKLB
 python main.py --limit 25
+python main.py --balanced-sample 200
 ```
+
+Each completed run exports a full diagnostic report, a curated top-candidate
+report, and JSON coverage analytics. Balanced samples deterministically
+interleave Canadian and U.S. listings for representative validation.
 
 ## Documentation
 

@@ -79,6 +79,8 @@ class RunState:
                 manifest["status"] = "in_progress"
                 manifest["completed_at"] = None
                 manifest["report_path"] = None
+                manifest["candidate_report_path"] = None
+                manifest["analytics_path"] = None
                 manifest["resume_count"] = manifest.get("resume_count", 0) + 1
                 state = cls(
                     run_directory,
@@ -107,6 +109,8 @@ class RunState:
             "completed_count": 0,
             "summary": None,
             "report_path": None,
+            "candidate_report_path": None,
+            "analytics_path": None,
             "resume_count": 0,
         }
         state = cls(run_directory, manifest, clock)
@@ -150,7 +154,13 @@ class RunState:
         self.manifest["updated_at"] = _utc_iso(self.clock())
         self._write_manifest()
 
-    def complete(self, results: list[dict], report_path: str) -> None:
+    def complete(
+        self,
+        results: list[dict],
+        report_path: str,
+        candidate_report_path: str | None = None,
+        analytics_path: str | None = None,
+    ) -> None:
         """Mark the run complete and add aggregate manifest statistics."""
         completed_at = self.clock()
         started_at = datetime.fromisoformat(self.manifest["started_at"])
@@ -170,6 +180,8 @@ class RunState:
                 "completed_count": len(results),
                 "summary": summary,
                 "report_path": report_path,
+                "candidate_report_path": candidate_report_path,
+                "analytics_path": analytics_path,
             }
         )
         self._write_manifest()

@@ -96,3 +96,4 @@ SCORING_CONFIG = STRATEGY["scoring"]
 ASSET_CLASSIFICATION_CONFIG = STRATEGY.get("asset_classification", {})
 FUNDAMENTAL_WEIGHTS = STRATEGY.get("fundamental_weights", {})
 FUNDAMENTAL_SCORING_CONFIG = STRATEGY.get("fundamental_scoring", {})
+REPORTS_CONFIG = STRATEGY.get("reports", {})

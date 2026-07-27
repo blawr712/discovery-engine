@@ -123,13 +123,20 @@ class RunStateTests(unittest.TestCase):
             },
         ]
 
-        state.complete(results, "final.csv")
+        state.complete(
+            results,
+            "final.csv",
+            candidate_report_path="candidates.csv",
+            analytics_path="analytics.json",
+        )
 
         with state.manifest_path.open("r", encoding="utf-8") as file:
             manifest = json.load(file)
         self.assertEqual(manifest["status"], "completed_with_errors")
         self.assertEqual(manifest["duration_seconds"], 12.346)
         self.assertEqual(manifest["report_path"], "final.csv")
+        self.assertEqual(manifest["candidate_report_path"], "candidates.csv")
+        self.assertEqual(manifest["analytics_path"], "analytics.json")
         self.assertEqual(manifest["summary"]["statuses"], {"ERROR": 1, "OK": 1})
         self.assertEqual(manifest["summary"]["failure_stages"], {"Metadata": 1})
 

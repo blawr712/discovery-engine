@@ -3,7 +3,8 @@ from src.data_sources.yfinance_source import YFinanceSource
 from src.data_sources.cached_source import CachedMarketDataSource
 from src.data_sources.retrying_source import RetryingMarketDataSource
 from src.data_sources.rate_limited_source import RateLimitedMarketDataSource
-from src.report import export_report
+from src.report import export_candidate_report, export_report
+from src.analytics import export_run_analytics
 from src.engine import DiscoveryEngine
 from src.run_state import RunState, build_run_fingerprint
 from src.cli import parse_args, select_universe
@@ -25,6 +26,7 @@ from src.config import (
     RESUME_ENABLED,
     RETRY_ERRORS_ON_RESUME,
     RUN_DIR,
+    OUTPUT_DIR,
     SETTINGS,
     STRATEGY,
     RATE_LIMIT_ENABLED,
@@ -76,6 +78,7 @@ def main(arguments=None):
             universe,
             tickers=args.tickers,
             limit=args.limit,
+            balanced_sample=args.balanced_sample,
         )
     except ValueError as error:
         raise SystemExit(str(error)) from error
@@ -109,7 +112,21 @@ def main(arguments=None):
     results = engine.run(universe, prior_results=prior_results)
 
     output_path = export_report(results, run_id=run_state.run_id)
-    run_state.complete(results, output_path)
+    candidate_output_path = export_candidate_report(
+        results,
+        run_id=run_state.run_id,
+    )
+    analytics_output_path = export_run_analytics(
+        results,
+        run_id=run_state.run_id,
+        output_directory=OUTPUT_DIR,
+    )
+    run_state.complete(
+        results,
+        output_path,
+        candidate_report_path=candidate_output_path,
+        analytics_path=analytics_output_path,
+    )
 
     passed = sum(1 for r in results if r.get("status") == "OK")
     filtered = sum(1 for r in results if r.get("status") == "FILTERED")
@@ -139,6 +156,8 @@ def main(arguments=None):
     print("\nDone.")
     print(f"Run status: {run_state.manifest['status']}")
     print(f"Report saved to: {output_path}")
+    print(f"Candidate report saved to: {candidate_output_path}")
+    print(f"Analytics saved to: {analytics_output_path}")
     print(f"Manifest saved to: {run_state.manifest_path}")
 
 
