@@ -97,6 +97,11 @@ class CalibrationTests(unittest.TestCase):
         self.assertEqual(rows[0]["fundamental_rank"], 3)
         self.assertEqual(rows[0]["rank_disagreement"], 2)
         self.assertTrue(rows[0]["low_fundamental_confidence"])
+        self.assertFalse(rows[0]["experimental_blend_eligible"])
+        self.assertIn(
+            "below 50%",
+            rows[0]["experimental_blend_ineligibility_reason"],
+        )
         self.assertIn("leverage above 1000", rows[0]["outlier_flags"])
         self.assertEqual(rows[2]["country_technical_percentile"], 100)
         self.assertTrue(summary["official_order_authoritative"])
@@ -105,6 +110,18 @@ class CalibrationTests(unittest.TestCase):
         )
         self.assertEqual(summary["top_overlap"]["count"], 1)
         self.assertEqual(summary["outlier_candidates"], 1)
+        self.assertEqual(
+            summary["experimental_blend_eligible_candidates"],
+            2,
+        )
+        self.assertEqual(
+            summary["top_overlaps"]["20"]["count"],
+            2,
+        )
+        self.assertEqual(
+            summary["factor_readiness"]["revenue_growth"]["status"],
+            "ready",
+        )
         self.assertEqual(
             summary["factor_distributions"]["revenue_growth"]["raw_values"][
                 "count"
@@ -119,6 +136,12 @@ class CalibrationTests(unittest.TestCase):
         self.assertEqual(rows[0]["ticker"], "TECH")
         self.assertEqual(rows[0]["experimental_baseline_rank"], 1)
         self.assertEqual(rows[2]["experimental_blend_rank"], 1)
+        self.assertEqual(
+            result["summary"]["scenario_movements"]["blend"][
+                "ranked_candidates"
+            ],
+            2,
+        )
 
     def test_rejects_invalid_blend_weights(self):
         config = {

@@ -21,6 +21,11 @@
 - Added country, sector, technical, and fundamental candidate percentiles
 - Added rank correlation, top-list overlap, disagreement, and outlier analysis
 - Added configurable 100/0, 80/20, and 70/30 experimental blend scenarios
+- Added configurable cap/invalid policies for extreme fundamental inputs
+- Added sector applicability exclusions without artificial confidence loss
+- Added confidence-adjusted blends with minimum-confidence eligibility
+- Added sector-relative fundamental percentiles and ineligibility explanations
+- Added top-20/50/100 overlap, scenario movement, and factor-readiness analysis
 
 ## v0.2.0 Performance — 2026-07-25
 

@@ -147,6 +147,52 @@ class FundamentalScoringTests(unittest.TestCase):
         self.assertEqual(breakdown["liquidity"]["data_quality"], "invalid")
         self.assertEqual(breakdown["leverage"]["data_quality"], "invalid")
 
+    def test_extreme_inputs_follow_configured_invalid_and_cap_policies(self):
+        result = calculate_fundamental_scores(
+            {
+                "revenue_growth": 18,
+                "current_ratio": 106,
+                "fundamental_data_timestamp": self.RECENT_QUARTER,
+            },
+            as_of=self.AS_OF,
+        )
+        breakdown = json.loads(result["fundamental_breakdown"])
+
+        self.assertFalse(breakdown["revenue_growth"]["available"])
+        self.assertEqual(
+            breakdown["revenue_growth"]["data_quality"],
+            "invalid",
+        )
+        self.assertEqual(breakdown["revenue_growth"]["source_value"], 18)
+        self.assertTrue(breakdown["liquidity"]["available"])
+        self.assertEqual(breakdown["liquidity"]["raw_value"], 50)
+        self.assertEqual(breakdown["liquidity"]["source_value"], 106)
+        self.assertEqual(breakdown["liquidity"]["data_quality"], "capped")
+
+    def test_sector_exclusions_do_not_reduce_confidence(self):
+        result = calculate_fundamental_scores(
+            {
+                "sector": "Financial Services",
+                "revenue_growth": 0.4,
+                "operating_margin": 0.2,
+                "free_cash_flow": 10_000_000,
+                "market_cap": 100_000_000,
+                "enterprise_to_ebitda": 5,
+                "current_ratio": 2,
+                "fundamental_data_timestamp": self.RECENT_QUARTER,
+            },
+            as_of=self.AS_OF,
+        )
+        breakdown = json.loads(result["fundamental_breakdown"])
+
+        for name in ("free_cash_flow", "enterprise_value_ebitda", "liquidity"):
+            self.assertFalse(breakdown[name]["applicable"])
+            self.assertEqual(
+                breakdown[name]["data_quality"],
+                "not_applicable",
+            )
+        self.assertGreater(result["fundamental_confidence"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

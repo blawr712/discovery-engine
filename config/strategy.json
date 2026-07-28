@@ -73,7 +73,31 @@
 
     "fundamental_data_policy": {
         "maximum_age_days": 550,
-        "undated_confidence_ratio": 0.75
+        "undated_confidence_ratio": 0.75,
+        "sector_exclusions": {
+            "Financial Services": [
+                "free_cash_flow",
+                "enterprise_value_ebitda",
+                "liquidity"
+            ],
+            "Real Estate": [
+                "earnings_growth",
+                "earnings_quality"
+            ]
+        },
+        "factor_input_policies": {
+            "revenue_growth": {"minimum": -1.0, "maximum": 10.0, "action": "invalid"},
+            "earnings_growth": {"minimum": -1.0, "maximum": 10.0, "action": "invalid"},
+            "profitability": {"minimum": -5.0, "maximum": 1.0, "action": "invalid"},
+            "free_cash_flow": {"minimum": -10.0, "maximum": 10.0, "action": "cap"},
+            "balance_sheet": {"minimum": -10.0, "maximum": 10.0, "action": "cap"},
+            "earnings_yield": {"minimum": 0.0, "maximum": 1.0, "action": "cap"},
+            "sales_yield": {"minimum": 0.0, "maximum": 10.0, "action": "cap"},
+            "enterprise_value_ebitda": {"minimum": 0.0, "maximum": 100.0, "action": "cap"},
+            "liquidity": {"minimum": 0.0, "maximum": 50.0, "action": "cap"},
+            "leverage": {"minimum": 0.0, "maximum": 1000.0, "action": "cap"},
+            "earnings_quality": {"minimum": -20.0, "maximum": 20.0, "action": "invalid"}
+        }
     },
 
     "fundamental_scoring": {
@@ -205,6 +229,12 @@
     "calibration": {
         "top_n": 100,
         "low_confidence_threshold": 50,
+        "minimum_blend_confidence": 50,
+        "overlap_cutoffs": [20, 50, 100],
+        "factor_readiness": {
+            "ready_minimum_coverage": 75,
+            "limited_minimum_coverage": 40
+        },
         "blend_scenarios": {
             "technical_100": {
                 "technical_weight": 1.0,
@@ -218,19 +248,6 @@
                 "technical_weight": 0.7,
                 "fundamental_weight": 0.3
             }
-        },
-        "outlier_bounds": {
-            "revenue_growth": {"minimum": -1.0, "maximum": 10.0},
-            "earnings_growth": {"minimum": -1.0, "maximum": 10.0},
-            "profitability": {"minimum": -5.0, "maximum": 1.0},
-            "free_cash_flow": {"minimum": -10.0, "maximum": 10.0},
-            "balance_sheet": {"minimum": -10.0, "maximum": 10.0},
-            "earnings_yield": {"minimum": 0.0, "maximum": 1.0},
-            "sales_yield": {"minimum": 0.0, "maximum": 10.0},
-            "enterprise_value_ebitda": {"minimum": 0.0, "maximum": 100.0},
-            "liquidity": {"minimum": 0.0, "maximum": 50.0},
-            "leverage": {"minimum": 0.0, "maximum": 1000.0},
-            "earnings_quality": {"minimum": -20.0, "maximum": 20.0}
         }
     }
 }

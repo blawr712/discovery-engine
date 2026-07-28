@@ -89,6 +89,11 @@ def _factor_coverage(rows: list[dict]) -> dict:
     coverage = {}
 
     for name in factor_names:
+        applicable = sum(
+            1
+            for factors in factor_rows
+            if factors.get(name, {}).get("applicable", True) is not False
+        )
         available = sum(
             1
             for factors in factor_rows
@@ -96,8 +101,14 @@ def _factor_coverage(rows: list[dict]) -> dict:
         )
         coverage[name] = {
             "available": available,
+            "applicable": applicable,
+            "not_applicable": total - applicable,
             "total": total,
-            "percentage": round((available / total) * 100, 2) if total else 0,
+            "percentage": (
+                round((available / applicable) * 100, 2)
+                if applicable
+                else 0
+            ),
         }
 
     return coverage

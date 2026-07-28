@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import datetime, timezone
 import math
 from numbers import Real
@@ -94,9 +95,15 @@ def calculate_fundamental_scores(
             quality_explanation,
         ),
     ]
+    factors = _apply_sector_applicability(
+        factors,
+        stock_data.get("sector"),
+    )
     score = round(sum(factor.points for factor in factors), 2)
     available_max = sum(
-        factor.max_points for factor in factors if factor.available
+        factor.max_points
+        for factor in factors
+        if factor.available and factor.applicable
     )
     normalized_score = (
         round((score / available_max) * 100, 2)
@@ -233,7 +240,24 @@ def _threshold_factor(
 ) -> FactorResult:
     max_points = float(FUNDAMENTAL_WEIGHTS[name])
     points = 0.0
-    available = value is not None and quality not in {"stale", "invalid_date"}
+    source_value = value
+    value, policy_quality, policy_explanation = _apply_input_policy(
+        name,
+        value,
+    )
+    if policy_quality is not None:
+        if policy_quality == "invalid":
+            quality = "invalid"
+        elif quality == "fresh":
+            quality = policy_quality
+        quality_explanation = (
+            f"{quality_explanation}; {policy_explanation}"
+        )
+    available = value is not None and quality not in {
+        "stale",
+        "invalid",
+        "invalid_date",
+    }
 
     if available:
         factor_config = FUNDAMENTAL_SCORING_CONFIG[name]
@@ -260,7 +284,67 @@ def _threshold_factor(
             "missing" if value is None else quality
         ),
         as_of=timestamp,
+        source_value=source_value,
     )
+
+
+def _apply_input_policy(
+    name: str,
+    value: float | None,
+) -> tuple[float | None, str | None, str]:
+    if value is None:
+        return None, None, ""
+    policies = FUNDAMENTAL_DATA_POLICY.get("factor_input_policies", {})
+    policy = policies.get(name)
+    if not isinstance(policy, dict):
+        return value, None, ""
+    minimum = _number(policy.get("minimum"))
+    maximum = _number(policy.get("maximum"))
+    outside = (
+        (minimum is not None and value < minimum)
+        or (maximum is not None and value > maximum)
+    )
+    if not outside:
+        return value, None, ""
+    action = str(policy.get("action", "flag"))
+    bounds = f"configured range [{minimum}, {maximum}]"
+    if action == "invalid":
+        return None, "invalid", f"source value {value:g} is outside {bounds}"
+    if action == "cap":
+        capped = value
+        if minimum is not None:
+            capped = max(capped, minimum)
+        if maximum is not None:
+            capped = min(capped, maximum)
+        return capped, "capped", (
+            f"source value {value:g} was capped to {capped:g}"
+        )
+    return value, "flagged", f"source value {value:g} is outside {bounds}"
+
+
+def _apply_sector_applicability(
+    factors: list[FactorResult],
+    sector: object,
+) -> list[FactorResult]:
+    exclusions = FUNDAMENTAL_DATA_POLICY.get("sector_exclusions", {})
+    excluded = set(exclusions.get(str(sector), []))
+    if not excluded:
+        return factors
+    return [
+        replace(
+            factor,
+            points=0.0,
+            available=False,
+            applicable=False,
+            data_quality="not_applicable",
+            explanation=(
+                f"{factor.explanation}; not applicable to {sector}"
+            ),
+        )
+        if factor.name in excluded
+        else factor
+        for factor in factors
+    ]
 
 
 def _direct_factor(

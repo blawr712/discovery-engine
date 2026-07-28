@@ -64,6 +64,10 @@ class AnalyticsTests(unittest.TestCase):
             50.0,
         )
         self.assertEqual(
+            analytics["factor_coverage"]["profitability"]["applicable"],
+            2,
+        )
+        self.assertEqual(
             analytics["coverage_by_country"]["CA"]["companies"],
             1,
         )

@@ -54,6 +54,11 @@ summary. These include relative percentiles, factor distributions, rank
 correlation, top-list overlap, outliers, low-confidence flags, and experimental
 blend scenarios. Experimental ranks never change the official candidate order.
 
+Calibration treats extreme inputs through configurable cap/invalid rules,
+removes sector-inappropriate factors from the applicable scoring denominator,
+and requires sufficient fundamental confidence before a company enters a
+blended scenario. Original provider values remain visible for audit.
+
 ## Documentation
 
 - PROJECT_CONTEXT.md

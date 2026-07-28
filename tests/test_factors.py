@@ -42,6 +42,23 @@ class FactorResultTests(unittest.TestCase):
 
         self.assertEqual(score_confidence(factors), 58.33)
 
+    def test_confidence_excludes_non_applicable_weight(self):
+        factors = [
+            FactorResult("usable", 1, 5, 10, True, "usable"),
+            FactorResult(
+                "excluded",
+                None,
+                0,
+                30,
+                False,
+                "not applicable",
+                "not_applicable",
+                applicable=False,
+            ),
+        ]
+
+        self.assertEqual(score_confidence(factors), 100.0)
+
 
 if __name__ == "__main__":
     unittest.main()

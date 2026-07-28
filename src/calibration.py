@@ -10,7 +10,11 @@ import tempfile
 
 import pandas as pd
 
-from src.config import CALIBRATION_CONFIG, OUTPUT_DIR
+from src.config import (
+    CALIBRATION_CONFIG,
+    FUNDAMENTAL_DATA_POLICY,
+    OUTPUT_DIR,
+)
 
 
 def build_calibration(results: list[dict], config: dict | None = None) -> dict:
@@ -38,6 +42,44 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
         candidates,
         "fundamental_score_normalized",
     )
+    minimum_blend_confidence = float(
+        config.get("minimum_blend_confidence", 50)
+    )
+    eligibility = {
+        str(row.get("ticker", "")): _blend_eligibility_reason(
+            row,
+            minimum_blend_confidence,
+        )
+        for row in candidates
+    }
+    confidence_adjusted_values = {
+        str(row.get("ticker", "")): _confidence_adjusted_score(row)
+        for row in candidates
+        if eligibility[str(row.get("ticker", ""))] is None
+    }
+    adjusted_rows = [
+        {
+            "ticker": ticker,
+            "confidence_adjusted_fundamental_score": value,
+            "sector": next(
+                row.get("sector")
+                for row in candidates
+                if str(row.get("ticker", "")) == ticker
+            ),
+        }
+        for ticker, value in confidence_adjusted_values.items()
+        if value is not None
+    ]
+    adjusted_percentiles = _percentiles(
+        adjusted_rows,
+        "confidence_adjusted_fundamental_score",
+    )
+    sector_fundamental_percentiles = _group_percentiles(
+        adjusted_rows,
+        "sector",
+        "confidence_adjusted_fundamental_score",
+    )
+    adjusted_ranks = _rank_values(confidence_adjusted_values)
     scenarios = _validated_scenarios(config.get("blend_scenarios", {}))
     scenario_scores: dict[str, dict[str, float | None]] = {}
 
@@ -46,7 +88,7 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
         for row in candidates:
             ticker = str(row.get("ticker", ""))
             technical = technical_percentiles.get(ticker)
-            fundamental = fundamental_percentiles.get(ticker)
+            fundamental = adjusted_percentiles.get(ticker)
             scenario_scores[name][ticker] = _blend_score(
                 technical,
                 fundamental,
@@ -66,7 +108,7 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
         ticker = str(row.get("ticker", ""))
         outliers = _outlier_flags(
             row,
-            config.get("outlier_bounds", {}),
+            FUNDAMENTAL_DATA_POLICY.get("factor_input_policies", {}),
         )
         calibration_row = {
             "official_rank": official_rank,
@@ -83,12 +125,21 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
                 "fundamental_score_normalized"
             ),
             "fundamental_percentile": fundamental_percentiles.get(ticker),
+            "confidence_adjusted_fundamental_score": (
+                confidence_adjusted_values.get(ticker)
+            ),
+            "calibrated_fundamental_rank": adjusted_ranks.get(ticker),
+            "sector_fundamental_percentile": (
+                sector_fundamental_percentiles.get(ticker)
+            ),
             "fundamental_confidence": row.get("fundamental_confidence"),
             "fundamental_data_quality": row.get("fundamental_data_quality"),
             "low_fundamental_confidence": (
                 _numeric(row.get("fundamental_confidence"), 0)
                 < low_confidence_threshold
             ),
+            "experimental_blend_eligible": eligibility[ticker] is None,
+            "experimental_blend_ineligibility_reason": eligibility[ticker],
             "rank_disagreement": (
                 abs(official_rank - fundamental_ranks[ticker])
                 if ticker in fundamental_ranks
@@ -114,13 +165,17 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
             "successful_candidates": len(candidates),
             "rank_correlation": _correlation(
                 technical_percentiles,
-                fundamental_percentiles,
+                adjusted_percentiles,
             ),
-            "top_overlap": _top_overlap(
-                candidates,
-                fundamental_ranks,
-                top_n,
-            ),
+            "top_overlap": _top_overlap(candidates, adjusted_ranks, top_n),
+            "top_overlaps": {
+                str(cutoff): _top_overlap(
+                    candidates,
+                    adjusted_ranks,
+                    int(cutoff),
+                )
+                for cutoff in config.get("overlap_cutoffs", [20, 50, 100])
+            },
             "largest_rank_disagreements": sorted(
                 (
                     {
@@ -144,6 +199,17 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
                 1 for row in rows if row["outlier_flags"]
             ),
             "factor_distributions": _factor_distributions(candidates),
+            "factor_readiness": _factor_readiness(candidates, config),
+            "scenario_movements": _scenario_movements(
+                rows,
+                scenarios,
+            ),
+            "experimental_blend_eligible_candidates": sum(
+                1 for reason in eligibility.values() if reason is None
+            ),
+            "experimental_blend_ineligible_reasons": _reason_counts(
+                eligibility.values()
+            ),
             "blend_scenarios": scenarios,
         },
     }
@@ -249,6 +315,33 @@ def _blend_score(
     )
 
 
+def _confidence_adjusted_score(row: dict) -> float | None:
+    score = _numeric(row.get("fundamental_score_normalized"))
+    confidence = _numeric(row.get("fundamental_confidence"))
+    if score is None or confidence is None:
+        return None
+    return round(score * confidence / 100, 2)
+
+
+def _blend_eligibility_reason(
+    row: dict,
+    minimum_confidence: float,
+) -> str | None:
+    if _numeric(row.get("fundamental_score_normalized")) is None:
+        return "Missing normalized fundamental score"
+    confidence = _numeric(row.get("fundamental_confidence"))
+    if confidence is None:
+        return "Missing fundamental confidence"
+    if confidence < minimum_confidence:
+        return (
+            f"Fundamental confidence {confidence:g}% is below "
+            f"{minimum_confidence:g}%"
+        )
+    if row.get("fundamental_data_quality") == "stale":
+        return "Fundamental data is stale"
+    return None
+
+
 def _validated_scenarios(scenarios: dict) -> dict:
     validated = {}
     for name, scenario in scenarios.items():
@@ -321,7 +414,10 @@ def _outlier_flags(row: dict, bounds: dict) -> list[str]:
     flags = []
     for name, limits in bounds.items():
         factor = breakdown.get(name, {})
-        value = _numeric(factor.get("raw_value"))
+        value = _numeric(
+            factor.get("source_value"),
+            _numeric(factor.get("raw_value")),
+        )
         if value is None:
             continue
         minimum = _numeric(limits.get("minimum"))
@@ -331,6 +427,98 @@ def _outlier_flags(row: dict, bounds: dict) -> list[str]:
         elif maximum is not None and value > maximum:
             flags.append(f"{name} above {maximum:g}: {value:g}")
     return flags
+
+
+def _factor_readiness(rows: list[dict], config: dict) -> dict:
+    names = sorted({
+        name
+        for row in rows
+        for name in _breakdown(row.get("fundamental_breakdown"))
+    })
+    readiness_config = config.get("factor_readiness", {})
+    ready_minimum = float(
+        readiness_config.get("ready_minimum_coverage", 75)
+    )
+    limited_minimum = float(
+        readiness_config.get("limited_minimum_coverage", 40)
+    )
+    result = {}
+    for name in names:
+        factors = [
+            _breakdown(row.get("fundamental_breakdown")).get(name, {})
+            for row in rows
+        ]
+        applicable = sum(
+            1
+            for factor in factors
+            if factor.get("applicable", True) is not False
+        )
+        available = sum(
+            1
+            for factor in factors
+            if factor.get("available") is True
+            and factor.get("applicable", True) is not False
+        )
+        coverage = round(available / applicable * 100, 2) if applicable else 0
+        if coverage >= ready_minimum:
+            status = "ready"
+        elif coverage >= limited_minimum:
+            status = "limited"
+        else:
+            status = "shadow_only"
+        result[name] = {
+            "status": status,
+            "available": available,
+            "applicable": applicable,
+            "coverage_percentage": coverage,
+        }
+    return result
+
+
+def _scenario_movements(rows: list[dict], scenarios: dict) -> dict:
+    movements = {}
+    for name in scenarios:
+        rank_field = f"experimental_{name}_rank"
+        comparable = [
+            {
+                "ticker": row["ticker"],
+                "official_rank": row["official_rank"],
+                "experimental_rank": row[rank_field],
+                "rank_movement": (
+                    row["official_rank"] - row[rank_field]
+                ),
+            }
+            for row in rows
+            if row.get(rank_field) is not None
+        ]
+        promotions = sorted(
+            comparable,
+            key=lambda item: (-item["rank_movement"], item["ticker"]),
+        )[:20]
+        demotions = sorted(
+            comparable,
+            key=lambda item: (item["rank_movement"], item["ticker"]),
+        )[:20]
+        movements[name] = {
+            "ranked_candidates": len(comparable),
+            "largest_promotions": promotions,
+            "largest_demotions": demotions,
+        }
+    return movements
+
+
+def _reason_counts(reasons) -> dict:
+    counts: dict[str, int] = {}
+    for reason in reasons:
+        if reason is None:
+            continue
+        category = (
+            "low_confidence"
+            if str(reason).startswith("Fundamental confidence")
+            else str(reason)
+        )
+        counts[category] = counts.get(category, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _factor_distributions(rows: list[dict]) -> dict:
