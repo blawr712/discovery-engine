@@ -229,8 +229,23 @@
     "calibration": {
         "top_n": 100,
         "low_confidence_threshold": 50,
-        "minimum_blend_confidence": 50,
         "overlap_cutoffs": [20, 50, 100],
+        "coverage_neutral_blend": {
+            "candidate_pool_size": 100,
+            "rerank_band_size": 25,
+            "minimum_peer_group_size": 20,
+            "minimum_country_factor_coverage": 75,
+            "neutral_percentile": 50,
+            "acceptance_gates": {
+                "maximum_country_eligibility_gap": 15,
+                "maximum_rank_movement": 75,
+                "minimum_top_retention": {
+                    "20": 60,
+                    "50": 70,
+                    "100": 100
+                }
+            }
+        },
         "factor_readiness": {
             "ready_minimum_coverage": 75,
             "limited_minimum_coverage": 40

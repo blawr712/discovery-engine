@@ -26,6 +26,12 @@
 - Added confidence-adjusted blends with minimum-confidence eligibility
 - Added sector-relative fundamental percentiles and ineligibility explanations
 - Added top-20/50/100 overlap, scenario movement, and factor-readiness analysis
+- Added dynamically selected cross-market core fundamental factors
+- Added country and sufficiently sized country/sector peer percentiles
+- Added continuous confidence scaling toward a neutral fundamental percentile
+- Constrained fundamental reranking to a top-100 pool and 25-company bands
+- Added country-fairness, retention, and movement acceptance gates
+- Added automatic experimental-scenario pass/fail recommendations
 
 ## v0.2.0 Performance — 2026-07-25
 

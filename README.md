@@ -59,6 +59,12 @@ removes sector-inappropriate factors from the applicable scoring denominator,
 and requires sufficient fundamental confidence before a company enters a
 blended scenario. Original provider values remain visible for audit.
 
+Coverage-neutral calibration selects only factors with adequate data in both
+Canada and the United States. Technical scoring defines the candidate pool;
+fundamentals compare companies with suitable peers and can reorder only within
+bounded technical bands. Configurable gates reject scenarios that create
+country bias, excessive movement, or insufficient top-list retention.
+
 ## Documentation
 
 - PROJECT_CONTEXT.md

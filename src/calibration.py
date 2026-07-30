@@ -42,21 +42,9 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
         candidates,
         "fundamental_score_normalized",
     )
-    minimum_blend_confidence = float(
-        config.get("minimum_blend_confidence", 50)
-    )
-    eligibility = {
-        str(row.get("ticker", "")): _blend_eligibility_reason(
-            row,
-            minimum_blend_confidence,
-        )
-        for row in candidates
-    }
-    confidence_adjusted_values = {
-        str(row.get("ticker", "")): _confidence_adjusted_score(row)
-        for row in candidates
-        if eligibility[str(row.get("ticker", ""))] is None
-    }
+    peer_model = _build_coverage_neutral_model(candidates, config)
+    eligibility = peer_model["eligibility"]
+    confidence_adjusted_values = peer_model["adjusted_scores"]
     adjusted_rows = [
         {
             "ticker": ticker,
@@ -70,10 +58,7 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
         for ticker, value in confidence_adjusted_values.items()
         if value is not None
     ]
-    adjusted_percentiles = _percentiles(
-        adjusted_rows,
-        "confidence_adjusted_fundamental_score",
-    )
+    adjusted_percentiles = peer_model["peer_percentiles"]
     sector_fundamental_percentiles = _group_percentiles(
         adjusted_rows,
         "sector",
@@ -82,21 +67,39 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
     adjusted_ranks = _rank_values(confidence_adjusted_values)
     scenarios = _validated_scenarios(config.get("blend_scenarios", {}))
     scenario_scores: dict[str, dict[str, float | None]] = {}
+    neutral_config = config.get("coverage_neutral_blend", {})
+    candidate_pool_size = int(
+        neutral_config.get("candidate_pool_size", config.get("top_n", 100))
+    )
 
     for name, weights in scenarios.items():
         scenario_scores[name] = {}
-        for row in candidates:
+        for official_rank, row in enumerate(candidates, start=1):
             ticker = str(row.get("ticker", ""))
             technical = technical_percentiles.get(ticker)
             fundamental = adjusted_percentiles.get(ticker)
+            if (
+                float(weights["fundamental_weight"]) > 0
+                and official_rank > candidate_pool_size
+            ):
+                scenario_scores[name][ticker] = None
+                continue
             scenario_scores[name][ticker] = _blend_score(
                 technical,
                 fundamental,
                 weights,
+                neutral=float(neutral_config.get("neutral_percentile", 50)),
             )
 
+    rerank_band_size = int(neutral_config.get("rerank_band_size", 25))
     scenario_ranks = {
-        name: _rank_values(values)
+        name: _bounded_scenario_ranks(
+            values,
+            candidates,
+            scenarios[name],
+            candidate_pool_size,
+            rerank_band_size,
+        )
         for name, values in scenario_scores.items()
     }
     low_confidence_threshold = float(
@@ -128,6 +131,17 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
             "confidence_adjusted_fundamental_score": (
                 confidence_adjusted_values.get(ticker)
             ),
+            "core_fundamental_score": peer_model["core_scores"].get(ticker),
+            "core_fundamental_confidence": (
+                peer_model["core_confidence"].get(ticker)
+            ),
+            "country_fundamental_percentile": (
+                peer_model["country_percentiles"].get(ticker)
+            ),
+            "peer_fundamental_percentile": (
+                peer_model["peer_percentiles"].get(ticker)
+            ),
+            "fundamental_peer_group": peer_model["peer_groups"].get(ticker),
             "calibrated_fundamental_rank": adjusted_ranks.get(ticker),
             "sector_fundamental_percentile": (
                 sector_fundamental_percentiles.get(ticker)
@@ -140,6 +154,15 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
             ),
             "experimental_blend_eligible": eligibility[ticker] is None,
             "experimental_blend_ineligibility_reason": eligibility[ticker],
+            "experimental_candidate_pool": official_rank <= candidate_pool_size,
+            "experimental_candidate_pool_reason": (
+                None
+                if official_rank <= candidate_pool_size
+                else (
+                    f"Outside top-{candidate_pool_size} technical "
+                    "candidate pool"
+                )
+            ),
             "rank_disagreement": (
                 abs(official_rank - fundamental_ranks[ticker])
                 if ticker in fundamental_ranks
@@ -211,6 +234,21 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
                 eligibility.values()
             ),
             "blend_scenarios": scenarios,
+            "coverage_neutral_model": {
+                "candidate_pool_size": candidate_pool_size,
+                "rerank_band_size": rerank_band_size,
+                "core_factors": peer_model["core_factors"],
+                "factor_country_coverage": peer_model[
+                    "factor_country_coverage"
+                ],
+                "country_eligibility": peer_model["country_eligibility"],
+            },
+            "scenario_acceptance": _scenario_acceptance(
+                rows,
+                scenarios,
+                config,
+                peer_model["country_eligibility"],
+            ),
         },
     }
 
@@ -244,7 +282,14 @@ def _percentiles(rows: list[dict], field: str) -> dict[str, float]:
         return {ticker: 100.0 for ticker in values}
     return {
         ticker: round(
-            sum(other < value for other in values.values())
+            (
+                sum(other < value for other in values.values())
+                + 0.5
+                * (
+                    sum(other == value for other in values.values())
+                    - 1
+                )
+            )
             / (len(values) - 1)
             * 100,
             2,
@@ -297,22 +342,240 @@ def _rank_values(values: dict[str, float | None]) -> dict[str, int]:
     }
 
 
+def _bounded_scenario_ranks(
+    values: dict[str, float | None],
+    candidates: list[dict],
+    weights: dict,
+    candidate_pool_size: int,
+    band_size: int,
+) -> dict[str, int]:
+    if float(weights["fundamental_weight"]) <= 0:
+        return _rank_values(values)
+    if candidate_pool_size < 1 or band_size < 1:
+        raise ValueError("Candidate pool and rerank band sizes must be positive.")
+    ranks = {}
+    pool = candidates[:candidate_pool_size]
+    for start in range(0, len(pool), band_size):
+        band = pool[start:start + band_size]
+        ordered = sorted(
+            (
+                (str(row.get("ticker", "")), values.get(
+                    str(row.get("ticker", ""))
+                ))
+                for row in band
+            ),
+            key=lambda item: (
+                -(item[1] if item[1] is not None else -math.inf),
+                item[0],
+            ),
+        )
+        for offset, (ticker, _) in enumerate(ordered, start=1):
+            ranks[ticker] = start + offset
+    return ranks
+
+
 def _blend_score(
     technical: float | None,
     fundamental: float | None,
     weights: dict,
+    neutral: float = 50,
 ) -> float | None:
     if technical is None:
         return None
     technical_weight = float(weights["technical_weight"])
     fundamental_weight = float(weights["fundamental_weight"])
-    if fundamental is None and fundamental_weight > 0:
-        return None
+    if fundamental is None:
+        fundamental = neutral
     return round(
         technical * technical_weight
-        + (fundamental or 0) * fundamental_weight,
+        + fundamental * fundamental_weight,
         2,
     )
+
+
+def _build_coverage_neutral_model(
+    candidates: list[dict],
+    config: dict,
+) -> dict:
+    model_config = config.get("coverage_neutral_blend", {})
+    minimum_coverage = float(
+        model_config.get("minimum_country_factor_coverage", 75)
+    )
+    minimum_peer_size = int(
+        model_config.get("minimum_peer_group_size", 20)
+    )
+    neutral = float(model_config.get("neutral_percentile", 50))
+    countries = sorted({
+        str(row.get("country") or "UNKNOWN") for row in candidates
+    })
+    factor_names = sorted({
+        name
+        for row in candidates
+        for name in _breakdown(row.get("fundamental_breakdown"))
+    })
+    country_coverage = {}
+    core_factors = []
+
+    for name in factor_names:
+        coverage = {}
+        for country in countries:
+            country_rows = [
+                row
+                for row in candidates
+                if str(row.get("country") or "UNKNOWN") == country
+            ]
+            factors = [
+                _breakdown(row.get("fundamental_breakdown")).get(name, {})
+                for row in country_rows
+            ]
+            applicable = sum(
+                factor.get("applicable", True) is not False
+                for factor in factors
+            )
+            available = sum(
+                factor.get("available") is True
+                and factor.get("applicable", True) is not False
+                for factor in factors
+            )
+            coverage[country] = {
+                "available": available,
+                "applicable": applicable,
+                "percentage": (
+                    round(available / applicable * 100, 2)
+                    if applicable
+                    else 0
+                ),
+            }
+        country_coverage[name] = coverage
+        if coverage and all(
+            details["percentage"] >= minimum_coverage
+            for details in coverage.values()
+        ):
+            core_factors.append(name)
+
+    core_scores = {}
+    core_confidence = {}
+    eligibility = {}
+    score_rows = []
+    for row in candidates:
+        ticker = str(row.get("ticker", ""))
+        breakdown = _breakdown(row.get("fundamental_breakdown"))
+        applicable_max = 0.0
+        available_max = 0.0
+        points = 0.0
+        for name in core_factors:
+            factor = breakdown.get(name, {})
+            maximum = _numeric(factor.get("max_points"))
+            if maximum is None or factor.get("applicable", True) is False:
+                continue
+            applicable_max += maximum
+            if factor.get("available") is True:
+                available_max += maximum
+                points += _numeric(factor.get("points"), 0)
+        score = (
+            round(points / available_max * 100, 2)
+            if available_max > 0
+            else None
+        )
+        confidence = (
+            round(available_max / applicable_max * 100, 2)
+            if applicable_max > 0
+            else None
+        )
+        core_scores[ticker] = score
+        core_confidence[ticker] = confidence
+        eligibility[ticker] = (
+            None if score is not None else "No usable core fundamental factors"
+        )
+        if score is not None:
+            score_rows.append(
+                {
+                    "ticker": ticker,
+                    "country": row.get("country"),
+                    "sector": row.get("sector"),
+                    "core_score": score,
+                }
+            )
+
+    country_percentiles = _group_percentiles(
+        score_rows,
+        "country",
+        "core_score",
+    )
+    peer_percentiles = {}
+    peer_groups = {}
+    country_sector_groups: dict[tuple[str, str], list[dict]] = {}
+    for row in score_rows:
+        key = (
+            str(row.get("country") or "UNKNOWN"),
+            str(row.get("sector") or "UNKNOWN"),
+        )
+        country_sector_groups.setdefault(key, []).append(row)
+    country_sector_percentiles = {
+        key: _percentiles(group, "core_score")
+        for key, group in country_sector_groups.items()
+        if len(group) >= minimum_peer_size
+    }
+    candidate_lookup = {
+        str(row.get("ticker", "")): row for row in candidates
+    }
+    for ticker, score in core_scores.items():
+        if score is None:
+            continue
+        row = candidate_lookup[ticker]
+        key = (
+            str(row.get("country") or "UNKNOWN"),
+            str(row.get("sector") or "UNKNOWN"),
+        )
+        if key in country_sector_percentiles:
+            base_percentile = country_sector_percentiles[key][ticker]
+            peer_groups[ticker] = f"{key[0]} / {key[1]}"
+        else:
+            base_percentile = country_percentiles.get(ticker, neutral)
+            peer_groups[ticker] = key[0]
+        confidence_ratio = _numeric(core_confidence.get(ticker), 0) / 100
+        peer_percentiles[ticker] = round(
+            neutral + (base_percentile - neutral) * confidence_ratio,
+            2,
+        )
+
+    adjusted_scores = {
+        ticker: (
+            round(score * _numeric(core_confidence.get(ticker), 0) / 100, 2)
+            if score is not None
+            else None
+        )
+        for ticker, score in core_scores.items()
+    }
+    country_eligibility = {}
+    for country in countries:
+        tickers = [
+            str(row.get("ticker", ""))
+            for row in candidates
+            if str(row.get("country") or "UNKNOWN") == country
+        ]
+        eligible = sum(eligibility[ticker] is None for ticker in tickers)
+        country_eligibility[country] = {
+            "total": len(tickers),
+            "eligible": eligible,
+            "percentage": (
+                round(eligible / len(tickers) * 100, 2)
+                if tickers
+                else 0
+            ),
+        }
+    return {
+        "core_factors": core_factors,
+        "factor_country_coverage": country_coverage,
+        "core_scores": core_scores,
+        "core_confidence": core_confidence,
+        "adjusted_scores": adjusted_scores,
+        "country_percentiles": country_percentiles,
+        "peer_percentiles": peer_percentiles,
+        "peer_groups": peer_groups,
+        "eligibility": eligibility,
+        "country_eligibility": country_eligibility,
+    }
 
 
 def _confidence_adjusted_score(row: dict) -> float | None:
@@ -505,6 +768,97 @@ def _scenario_movements(rows: list[dict], scenarios: dict) -> dict:
             "largest_demotions": demotions,
         }
     return movements
+
+
+def _scenario_acceptance(
+    rows: list[dict],
+    scenarios: dict,
+    config: dict,
+    country_eligibility: dict,
+) -> dict:
+    model_config = config.get("coverage_neutral_blend", {})
+    gates = model_config.get("acceptance_gates", {})
+    maximum_gap = float(
+        gates.get("maximum_country_eligibility_gap", 15)
+    )
+    maximum_movement = int(gates.get("maximum_rank_movement", 75))
+    retention_gates = gates.get(
+        "minimum_top_retention",
+        {"20": 60, "50": 70, "100": 100},
+    )
+    eligibility_percentages = [
+        _numeric(details.get("percentage"), 0)
+        for details in country_eligibility.values()
+    ]
+    country_gap = (
+        round(max(eligibility_percentages) - min(eligibility_percentages), 2)
+        if eligibility_percentages
+        else 0
+    )
+    result = {}
+    for name, weights in scenarios.items():
+        rank_field = f"experimental_{name}_rank"
+        failures = []
+        retentions = {}
+        for cutoff_text, minimum in retention_gates.items():
+            cutoff = int(cutoff_text)
+            official = {
+                row["ticker"]
+                for row in rows
+                if row["official_rank"] <= cutoff
+            }
+            experimental = {
+                row["ticker"]
+                for row in rows
+                if row.get(rank_field) is not None
+                and row[rank_field] <= cutoff
+            }
+            denominator = min(cutoff, len(official))
+            overlap = len(official & experimental)
+            percentage = (
+                round(overlap / denominator * 100, 2)
+                if denominator
+                else None
+            )
+            retentions[str(cutoff)] = {
+                "count": overlap,
+                "percentage": percentage,
+                "minimum_required": float(minimum),
+            }
+            if percentage is not None and percentage < float(minimum):
+                failures.append(
+                    f"Top-{cutoff} retention {percentage:g}% is below "
+                    f"{float(minimum):g}%"
+                )
+        movements = [
+            abs(row["official_rank"] - row[rank_field])
+            for row in rows
+            if row.get(rank_field) is not None
+        ]
+        largest_movement = max(movements, default=0)
+        if largest_movement > maximum_movement:
+            failures.append(
+                f"Maximum rank movement {largest_movement} exceeds "
+                f"{maximum_movement}"
+            )
+        if (
+            float(weights["fundamental_weight"]) > 0
+            and country_gap > maximum_gap
+        ):
+            failures.append(
+                f"Country eligibility gap {country_gap:g} points exceeds "
+                f"{maximum_gap:g}"
+            )
+        result[name] = {
+            "status": "pass" if not failures else "fail",
+            "failures": failures,
+            "top_retention": retentions,
+            "maximum_rank_movement": largest_movement,
+            "maximum_rank_movement_allowed": maximum_movement,
+            "country_eligibility_gap": country_gap,
+            "country_eligibility_gap_allowed": maximum_gap,
+        }
+    return result
 
 
 def _reason_counts(reasons) -> dict:
