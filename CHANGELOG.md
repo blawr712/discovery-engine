@@ -37,6 +37,11 @@
 - Added rank-movement, core-factor, peer, and data-treatment explanations
 - Added combined top-25 scenario review and composition summary artifacts
 - Added recalibration provenance to saved run manifests
+- Added side-by-side passing-scenario comparison and consensus ranking
+- Added rank sensitivity and top-10/25/50/100 agreement measurements
+- Added conservative automatic scenario recommendation with gate validation
+- Selected the passing 80/20 model as the configured v0.3 research scenario
+- Added the final selected v0.3 research-candidate queue and decision record
 
 ## v0.2.0 Performance — 2026-07-25
 

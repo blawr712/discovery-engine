@@ -234,6 +234,14 @@ def build_calibration(results: list[dict], config: dict | None = None) -> dict:
                 eligibility.values()
             ),
             "blend_scenarios": scenarios,
+            "research_ranking_config": {
+                "selected_scenario": config.get(
+                    "selected_research_scenario"
+                ),
+                "rank_sensitivity_threshold": int(
+                    config.get("rank_sensitivity_threshold", 5)
+                ),
+            },
             "coverage_neutral_model": {
                 "candidate_pool_size": candidate_pool_size,
                 "rerank_band_size": rerank_band_size,

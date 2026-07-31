@@ -126,6 +126,7 @@ def export_experimental_research_reports(
         summary.get("coverage_neutral_model", {}).get("core_factors", [])
     )
     report_paths = {}
+    scenario_rows_by_name = {}
     review_rows = []
     composition = {}
 
@@ -197,6 +198,7 @@ def export_experimental_research_reports(
         path = output_directory / f"research_{slug}_{run_id}.csv"
         pd.DataFrame(scenario_rows).to_csv(path, index=False)
         report_paths[scenario] = str(path)
+        scenario_rows_by_name[scenario] = scenario_rows
         review_rows.extend(scenario_rows[:review_n])
         composition[scenario] = _composition_summary(scenario_rows)
 
@@ -217,11 +219,191 @@ def export_experimental_research_reports(
             indent=2,
             sort_keys=True,
         )
+    selection_artifacts = _export_scenario_selection(
+        scenario_rows_by_name,
+        summary,
+        run_id,
+        output_directory,
+    )
     return {
         "scenario_report_paths": report_paths,
         "review_report_path": str(review_path),
         "scenario_summary_path": str(summary_path),
+        **selection_artifacts,
     }
+
+
+def _export_scenario_selection(
+    scenarios: dict[str, list[dict]],
+    calibration_summary: dict,
+    run_id: str,
+    output_directory: Path,
+) -> dict:
+    passing = sorted(scenarios)
+    weights = calibration_summary.get("blend_scenarios", {})
+    recommendation = (
+        max(
+            passing,
+            key=lambda name: (
+                float(weights.get(name, {}).get("technical_weight", 0)),
+                name,
+            ),
+        )
+        if passing
+        else None
+    )
+    ranking_config = calibration_summary.get("research_ranking_config", {})
+    configured = ranking_config.get("selected_scenario")
+    selected = configured if configured in passing else recommendation
+    sensitivity_threshold = int(
+        ranking_config.get("rank_sensitivity_threshold", 5)
+    )
+    row_lookup = {
+        scenario: {row["ticker"]: row for row in rows}
+        for scenario, rows in scenarios.items()
+    }
+    tickers = sorted({
+        ticker for lookup in row_lookup.values() for ticker in lookup
+    })
+    comparison_rows = []
+    for ticker in tickers:
+        ranks = {
+            scenario: int(lookup[ticker]["experimental_rank"])
+            for scenario, lookup in row_lookup.items()
+            if ticker in lookup
+        }
+        if not ranks:
+            continue
+        selected_source = (
+            row_lookup.get(selected, {}).get(ticker, {})
+            if selected
+            else {}
+        )
+        rank_values = list(ranks.values())
+        comparison_row = {
+            "ticker": ticker,
+            "company_name": selected_source.get("company_name"),
+            "country": selected_source.get("country"),
+            "sector": selected_source.get("sector"),
+            "official_rank": selected_source.get("official_rank"),
+            "selected_scenario": selected,
+            "selected_rank": ranks.get(selected),
+            "consensus_rank_average": round(
+                sum(rank_values) / len(rank_values),
+                2,
+            ),
+            "scenario_rank_min": min(rank_values),
+            "scenario_rank_max": max(rank_values),
+            "scenario_rank_range": max(rank_values) - min(rank_values),
+            "rank_sensitivity": (
+                "stable"
+                if max(rank_values) - min(rank_values)
+                <= sensitivity_threshold
+                else "weight_sensitive"
+            ),
+        }
+        for scenario in passing:
+            comparison_row[f"{scenario}_rank"] = ranks.get(scenario)
+        comparison_rows.append(comparison_row)
+    comparison_rows.sort(
+        key=lambda row: (
+            row["consensus_rank_average"],
+            row["ticker"],
+        )
+    )
+    for consensus_rank, row in enumerate(comparison_rows, start=1):
+        row["consensus_rank"] = consensus_rank
+
+    comparison_path = (
+        output_directory / f"research_scenario_comparison_{run_id}.csv"
+    )
+    pd.DataFrame(comparison_rows).to_csv(comparison_path, index=False)
+
+    selected_path = None
+    if selected:
+        comparison_lookup = {row["ticker"]: row for row in comparison_rows}
+        selected_rows = []
+        for source in scenarios[selected]:
+            row = dict(source)
+            comparison = comparison_lookup[source["ticker"]]
+            row["selected_research_scenario"] = selected
+            row["consensus_rank"] = comparison["consensus_rank"]
+            row["scenario_rank_range"] = comparison["scenario_rank_range"]
+            row["rank_sensitivity"] = comparison["rank_sensitivity"]
+            selected_rows.append(row)
+        selected_path = (
+            output_directory / f"v0.3_research_candidates_{run_id}.csv"
+        )
+        pd.DataFrame(selected_rows).to_csv(selected_path, index=False)
+
+    agreement = _scenario_agreement(row_lookup, passing)
+    stable_count = sum(
+        row["rank_sensitivity"] == "stable" for row in comparison_rows
+    )
+    decision = {
+        "run_id": run_id,
+        "passing_weighted_scenarios": passing,
+        "configured_scenario": configured,
+        "recommended_scenario": recommendation,
+        "selected_scenario": selected,
+        "selection_status": "selected" if selected else "no_passing_scenario",
+        "recommendation_reason": (
+            "Highest technical weight among passing weighted scenarios"
+            if recommendation
+            else "No weighted scenario passed calibration gates"
+        ),
+        "official_discovery_score_unchanged": True,
+        "rank_sensitivity_threshold": sensitivity_threshold,
+        "compared_candidates": len(comparison_rows),
+        "stable_candidates": stable_count,
+        "weight_sensitive_candidates": len(comparison_rows) - stable_count,
+        "scenario_agreement": agreement,
+        "comparison_report_path": str(comparison_path),
+        "selected_research_report_path": (
+            str(selected_path) if selected_path else None
+        ),
+    }
+    decision_path = output_directory / f"research_decision_{run_id}.json"
+    with decision_path.open("w", encoding="utf-8") as file:
+        json.dump(decision, file, indent=2, sort_keys=True)
+    return {
+        "scenario_comparison_path": str(comparison_path),
+        "research_decision_path": str(decision_path),
+        "selected_research_report_path": (
+            str(selected_path) if selected_path else None
+        ),
+        "selected_research_scenario": selected,
+    }
+
+
+def _scenario_agreement(
+    row_lookup: dict[str, dict[str, dict]],
+    scenarios: list[str],
+) -> dict:
+    if not scenarios:
+        return {}
+    agreement = {}
+    for cutoff in (10, 25, 50, 100):
+        top_sets = [
+            {
+                ticker
+                for ticker, row in row_lookup[scenario].items()
+                if int(row["experimental_rank"]) <= cutoff
+            }
+            for scenario in scenarios
+        ]
+        common = set.intersection(*top_sets) if top_sets else set()
+        union = set.union(*top_sets) if top_sets else set()
+        agreement[f"top_{cutoff}"] = {
+            "common_candidates": len(common),
+            "union_candidates": len(union),
+            "jaccard_percentage": (
+                round(len(common) / len(union) * 100, 2)
+                if union
+                else None
+            ),
+        }
+    return agreement
 
 
 def _fundamental_review(

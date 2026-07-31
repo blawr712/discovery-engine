@@ -132,6 +132,8 @@ class CandidateReportTests(unittest.TestCase):
                     "outlier_flags": "",
                     "experimental_blend_score": 80,
                     "experimental_blend_rank": 1,
+                    "experimental_aggressive_score": 70,
+                    "experimental_aggressive_rank": 2,
                 },
                 {
                     "ticker": "DOWN",
@@ -148,6 +150,8 @@ class CandidateReportTests(unittest.TestCase):
                     "outlier_flags": "",
                     "experimental_blend_score": 20,
                     "experimental_blend_rank": 2,
+                    "experimental_aggressive_score": 75,
+                    "experimental_aggressive_rank": 1,
                 },
             ],
             "summary": {
@@ -158,10 +162,15 @@ class CandidateReportTests(unittest.TestCase):
                     "blend": {
                         "technical_weight": 0.8,
                         "fundamental_weight": 0.2,
-                    }
+                    },
+                    "aggressive": {
+                        "technical_weight": 0.7,
+                        "fundamental_weight": 0.3,
+                    },
                 },
                 "scenario_acceptance": {
                     "blend": {"status": "pass", "failures": []},
+                    "aggressive": {"status": "pass", "failures": []},
                 },
             },
         }
@@ -184,12 +193,29 @@ class CandidateReportTests(unittest.TestCase):
                 encoding="utf-8",
             ) as file:
                 summary = json.load(file)
+            comparison = pd.read_csv(
+                artifacts["scenario_comparison_path"]
+            )
+            selected = pd.read_csv(
+                artifacts["selected_research_report_path"]
+            )
+            with open(
+                artifacts["research_decision_path"],
+                "r",
+                encoding="utf-8",
+            ) as file:
+                decision = json.load(file)
 
         self.assertEqual(scenario["ticker"].tolist(), ["UP", "DOWN"])
-        self.assertEqual(review["ticker"].tolist(), ["UP"])
+        self.assertEqual(set(review["ticker"]), {"UP", "DOWN"})
         self.assertIn("Promoted 1 positions", scenario.iloc[0]["movement_explanation"])
         self.assertIn("profitability", scenario.iloc[0]["core_strengths"])
         self.assertEqual(summary["composition"]["blend"]["top_25"]["companies"], 2)
+        self.assertEqual(artifacts["selected_research_scenario"], "blend")
+        self.assertEqual(selected["ticker"].tolist(), ["UP", "DOWN"])
+        self.assertIn("consensus_rank", comparison.columns)
+        self.assertTrue(decision["official_discovery_score_unchanged"])
+        self.assertEqual(decision["selected_scenario"], "blend")
 
 
 if __name__ == "__main__":

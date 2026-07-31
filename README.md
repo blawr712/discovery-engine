@@ -77,6 +77,12 @@ summarizes country and sector composition, and records provenance in the
 original run manifest. It fails safely when a run is incomplete or its
 checkpoints cannot be reconstructed losslessly.
 
+Passing weighted scenarios are compared before one controls the v0.3 research
+queue. The comparison exports consensus rank, rank sensitivity, and candidate
+agreement at several cutoffs. The configured 80% technical / 20% fundamental
+scenario is selected only while it passes every calibration gate; the original
+Discovery Score and official technical report remain unchanged.
+
 ## Documentation
 
 - PROJECT_CONTEXT.md

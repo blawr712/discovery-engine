@@ -184,6 +184,10 @@ def main(arguments=None):
         "Research review saved to: "
         f"{intelligence['research_artifacts']['review_report_path']}"
     )
+    print(
+        "Selected v0.3 research queue saved to: "
+        f"{intelligence['research_artifacts']['selected_research_report_path']}"
+    )
     print(f"Manifest saved to: {run_state.manifest_path}")
 
 
@@ -238,6 +242,18 @@ def recalibrate_saved_run(run_id: str) -> None:
         print(f"{scenario} research report saved to: {path}")
     print(f"Top-25 review saved to: {research['review_report_path']}")
     print(f"Scenario summary saved to: {research['scenario_summary_path']}")
+    print(
+        "Scenario comparison saved to: "
+        f"{research['scenario_comparison_path']}"
+    )
+    print(
+        "Research decision saved to: "
+        f"{research['research_decision_path']}"
+    )
+    print(
+        "Selected v0.3 research queue saved to: "
+        f"{research['selected_research_report_path']}"
+    )
     print(f"Manifest updated: {manifest_path}")
 
 
