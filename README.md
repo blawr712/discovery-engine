@@ -65,6 +65,18 @@ fundamentals compare companies with suitable peers and can reorder only within
 bounded technical bands. Configurable gates reject scenarios that create
 country bias, excessive movement, or insufficient top-list retention.
 
+Completed runs can be recalibrated without Yahoo or any other provider call:
+
+```powershell
+python main.py --recalibrate-run RUN_ID
+```
+
+The command rebuilds calibration artifacts, exports decision-ready research
+queues for every passing weighted scenario, creates a combined top-25 review,
+summarizes country and sector composition, and records provenance in the
+original run manifest. It fails safely when a run is incomplete or its
+checkpoints cannot be reconstructed losslessly.
+
 ## Documentation
 
 - PROJECT_CONTEXT.md

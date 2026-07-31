@@ -30,6 +30,11 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         metavar="PER_COUNTRY",
         help="interleave up to PER_COUNTRY Canadian and U.S. listings",
     )
+    selection.add_argument(
+        "--recalibrate-run",
+        metavar="RUN_ID",
+        help="regenerate calibration artifacts from a completed saved run",
+    )
     return parser.parse_args(arguments)
 
 

@@ -11,6 +11,10 @@ from pathlib import Path
 import tempfile
 from typing import Callable
 from uuid import uuid4
+import re
+
+
+RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 def build_run_fingerprint(
@@ -83,6 +87,7 @@ class RunState:
                 manifest["analytics_path"] = None
                 manifest["calibration_csv_path"] = None
                 manifest["calibration_json_path"] = None
+                manifest["research_artifacts"] = None
                 manifest["resume_count"] = manifest.get("resume_count", 0) + 1
                 state = cls(
                     run_directory,
@@ -115,6 +120,7 @@ class RunState:
             "analytics_path": None,
             "calibration_csv_path": None,
             "calibration_json_path": None,
+            "research_artifacts": None,
             "resume_count": 0,
         }
         state = cls(run_directory, manifest, clock)
@@ -166,6 +172,7 @@ class RunState:
         analytics_path: str | None = None,
         calibration_csv_path: str | None = None,
         calibration_json_path: str | None = None,
+        research_artifacts: dict | None = None,
     ) -> None:
         """Mark the run complete and add aggregate manifest statistics."""
         completed_at = self.clock()
@@ -190,6 +197,7 @@ class RunState:
                 "analytics_path": analytics_path,
                 "calibration_csv_path": calibration_csv_path,
                 "calibration_json_path": calibration_json_path,
+                "research_artifacts": research_artifacts,
             }
         )
         self._write_manifest()
@@ -256,6 +264,68 @@ def summarize_results(results: list[dict]) -> dict:
         "exchanges": dict(sorted(exchanges.items())),
         "failure_stages": dict(sorted(failure_stages.items())),
     }
+
+
+def load_saved_run(
+    root_directory: Path,
+    run_id: str,
+) -> tuple[dict, list[dict]]:
+    """Load a complete run without initializing any market-data provider."""
+    run_id = str(run_id).strip()
+    if not RUN_ID_PATTERN.fullmatch(run_id):
+        raise ValueError("Run ID contains invalid characters.")
+    run_directory = Path(root_directory) / run_id
+    manifest_path = run_directory / "manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Saved run not found: {run_id}")
+    try:
+        with manifest_path.open("r", encoding="utf-8") as file:
+            manifest = json.load(file)
+    except (OSError, json.JSONDecodeError, TypeError) as error:
+        raise ValueError(f"Saved run manifest is unreadable: {run_id}") from error
+    if manifest.get("status") not in {"complete", "completed_with_errors"}:
+        raise ValueError(f"Saved run is not complete: {run_id}")
+
+    checkpoint_directory = run_directory / "checkpoints"
+    indexed_results = {}
+    for path in sorted(checkpoint_directory.glob("*.json")):
+        try:
+            with path.open("r", encoding="utf-8") as file:
+                checkpoint = json.load(file)
+            index = checkpoint["index"]
+            result = checkpoint["result"]
+        except (OSError, json.JSONDecodeError, KeyError, TypeError):
+            continue
+        if isinstance(index, int) and isinstance(result, dict):
+            indexed_results[index] = result
+
+    expected = int(manifest.get("completed_count", 0))
+    if len(indexed_results) != expected:
+        raise ValueError(
+            f"Saved run has {len(indexed_results)} readable checkpoints; "
+            f"expected {expected}."
+        )
+    return manifest, [indexed_results[index] for index in sorted(indexed_results)]
+
+
+def record_recalibration(
+    root_directory: Path,
+    run_id: str,
+    artifacts: dict,
+    clock: Callable[[], datetime] | None = None,
+) -> str:
+    """Record offline artifact provenance on an existing run manifest."""
+    manifest, _ = load_saved_run(root_directory, run_id)
+    clock = clock or (lambda: datetime.now(timezone.utc))
+    manifest["calibration_csv_path"] = artifacts.get("calibration_csv_path")
+    manifest["calibration_json_path"] = artifacts.get("calibration_json_path")
+    manifest["recalibration"] = {
+        "completed_at": _utc_iso(clock()),
+        **artifacts,
+    }
+    manifest_path = Path(root_directory) / run_id / "manifest.json"
+    _atomic_write_json(manifest_path, manifest)
+    return str(manifest_path)
 
 
 def _atomic_write_json(path: Path, data: dict) -> None:

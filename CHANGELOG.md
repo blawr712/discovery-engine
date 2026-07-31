@@ -32,6 +32,11 @@
 - Constrained fundamental reranking to a top-100 pool and 25-company bands
 - Added country-fairness, retention, and movement acceptance gates
 - Added automatic experimental-scenario pass/fail recommendations
+- Added offline recalibration from complete atomic run checkpoints
+- Added decision-ready reports for every passing weighted scenario
+- Added rank-movement, core-factor, peer, and data-treatment explanations
+- Added combined top-25 scenario review and composition summary artifacts
+- Added recalibration provenance to saved run manifests
 
 ## v0.2.0 Performance — 2026-07-25
 

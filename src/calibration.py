@@ -258,11 +258,12 @@ def export_calibration(
     run_id: str,
     output_directory: Path | None = None,
     config: dict | None = None,
+    calibration: dict | None = None,
 ) -> tuple[str, str]:
     """Export officially ordered calibration rows and aggregate JSON."""
     output_directory = Path(output_directory or OUTPUT_DIR)
     output_directory.mkdir(parents=True, exist_ok=True)
-    calibration = build_calibration(results, config)
+    calibration = calibration or build_calibration(results, config)
     csv_path = output_directory / f"discovery_calibration_{run_id}.csv"
     json_path = output_directory / f"discovery_calibration_{run_id}.json"
     pd.DataFrame(calibration["rows"]).to_csv(csv_path, index=False)

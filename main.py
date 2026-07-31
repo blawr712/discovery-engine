@@ -3,11 +3,20 @@ from src.data_sources.yfinance_source import YFinanceSource
 from src.data_sources.cached_source import CachedMarketDataSource
 from src.data_sources.retrying_source import RetryingMarketDataSource
 from src.data_sources.rate_limited_source import RateLimitedMarketDataSource
-from src.report import export_candidate_report, export_report
+from src.report import (
+    export_candidate_report,
+    export_experimental_research_reports,
+    export_report,
+)
 from src.analytics import export_run_analytics
-from src.calibration import export_calibration
+from src.calibration import build_calibration, export_calibration
 from src.engine import DiscoveryEngine
-from src.run_state import RunState, build_run_fingerprint
+from src.run_state import (
+    RunState,
+    build_run_fingerprint,
+    load_saved_run,
+    record_recalibration,
+)
 from src.cli import parse_args, select_universe
 from src.config import (
     BENCHMARKS,
@@ -50,6 +59,10 @@ def print_progress(
 
 def main(arguments=None):
     args = parse_args(arguments)
+    if args.recalibrate_run:
+        recalibrate_saved_run(args.recalibrate_run)
+        return
+
     provider = RateLimitedMarketDataSource(
         YFinanceSource(),
         metadata_interval_seconds=METADATA_INTERVAL_SECONDS,
@@ -122,11 +135,9 @@ def main(arguments=None):
         run_id=run_state.run_id,
         output_directory=OUTPUT_DIR,
     )
-    calibration_csv_path, calibration_json_path = export_calibration(
-        results,
-        run_id=run_state.run_id,
-        output_directory=OUTPUT_DIR,
-    )
+    intelligence = export_intelligence_artifacts(results, run_state.run_id)
+    calibration_csv_path = intelligence["calibration_csv_path"]
+    calibration_json_path = intelligence["calibration_json_path"]
     run_state.complete(
         results,
         output_path,
@@ -134,6 +145,7 @@ def main(arguments=None):
         analytics_path=analytics_output_path,
         calibration_csv_path=calibration_csv_path,
         calibration_json_path=calibration_json_path,
+        research_artifacts=intelligence["research_artifacts"],
     )
 
     passed = sum(1 for r in results if r.get("status") == "OK")
@@ -168,7 +180,65 @@ def main(arguments=None):
     print(f"Analytics saved to: {analytics_output_path}")
     print(f"Calibration rows saved to: {calibration_csv_path}")
     print(f"Calibration analysis saved to: {calibration_json_path}")
+    print(
+        "Research review saved to: "
+        f"{intelligence['research_artifacts']['review_report_path']}"
+    )
     print(f"Manifest saved to: {run_state.manifest_path}")
+
+
+def export_intelligence_artifacts(results: list[dict], run_id: str) -> dict:
+    """Export calibration and decision-ready research artifacts once."""
+    calibration = build_calibration(results)
+    calibration_csv_path, calibration_json_path = export_calibration(
+        results,
+        run_id=run_id,
+        output_directory=OUTPUT_DIR,
+        calibration=calibration,
+    )
+    research_artifacts = export_experimental_research_reports(
+        results,
+        calibration,
+        run_id,
+        output_directory=OUTPUT_DIR,
+    )
+    return {
+        "calibration_csv_path": calibration_csv_path,
+        "calibration_json_path": calibration_json_path,
+        "research_artifacts": research_artifacts,
+    }
+
+
+def recalibrate_saved_run(run_id: str) -> None:
+    """Regenerate intelligence artifacts without provider initialization."""
+    try:
+        manifest, results = load_saved_run(RUN_DIR, run_id)
+    except (FileNotFoundError, ValueError) as error:
+        raise SystemExit(str(error)) from error
+    intelligence = export_intelligence_artifacts(results, run_id)
+    artifacts = {
+        **intelligence,
+        "source_fingerprint": manifest.get("fingerprint"),
+        "source_completed_at": manifest.get("completed_at"),
+    }
+    manifest_path = record_recalibration(RUN_DIR, run_id, artifacts)
+    research = intelligence["research_artifacts"]
+
+    print(f"Offline recalibration complete for run: {run_id}")
+    print(f"Loaded saved results: {len(results)}")
+    print(
+        "Calibration rows saved to: "
+        f"{intelligence['calibration_csv_path']}"
+    )
+    print(
+        "Calibration analysis saved to: "
+        f"{intelligence['calibration_json_path']}"
+    )
+    for scenario, path in research["scenario_report_paths"].items():
+        print(f"{scenario} research report saved to: {path}")
+    print(f"Top-25 review saved to: {research['review_report_path']}")
+    print(f"Scenario summary saved to: {research['scenario_summary_path']}")
+    print(f"Manifest updated: {manifest_path}")
 
 
 if __name__ == "__main__":

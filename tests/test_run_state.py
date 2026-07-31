@@ -4,7 +4,13 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from src.run_state import RunState, build_run_fingerprint, summarize_results
+from src.run_state import (
+    RunState,
+    build_run_fingerprint,
+    load_saved_run,
+    record_recalibration,
+    summarize_results,
+)
 
 
 class MutableClock:
@@ -202,6 +208,72 @@ class RunStateTests(unittest.TestCase):
 
         self.assertEqual(summary["countries"], {"UNKNOWN": 1})
         self.assertEqual(summary["exchanges"], {"UNKNOWN": 1})
+
+    def test_loads_complete_saved_run_in_checkpoint_order(self):
+        state = RunState.start_or_resume(
+            self.root,
+            "fingerprint",
+            2,
+            clock=self.clock,
+        )
+        state.record_result(1, {"ticker": "TWO", "status": "OK"})
+        state.record_result(0, {"ticker": "ONE", "status": "OK"})
+        state.complete(
+            [
+                {"ticker": "ONE", "status": "OK"},
+                {"ticker": "TWO", "status": "OK"},
+            ],
+            "report.csv",
+        )
+
+        manifest, results = load_saved_run(self.root, state.run_id)
+
+        self.assertEqual(manifest["status"], "complete")
+        self.assertEqual([row["ticker"] for row in results], ["ONE", "TWO"])
+
+    def test_rejects_unsafe_or_incomplete_saved_run(self):
+        with self.assertRaisesRegex(ValueError, "invalid characters"):
+            load_saved_run(self.root, "../outside")
+
+        state = RunState.start_or_resume(
+            self.root,
+            "fingerprint",
+            1,
+            clock=self.clock,
+        )
+        with self.assertRaisesRegex(ValueError, "not complete"):
+            load_saved_run(self.root, state.run_id)
+
+    def test_records_recalibration_provenance(self):
+        state = RunState.start_or_resume(
+            self.root,
+            "fingerprint",
+            1,
+            clock=self.clock,
+        )
+        state.record_result(0, {"ticker": "ONE", "status": "OK"})
+        state.complete([{"ticker": "ONE", "status": "OK"}], "report.csv")
+
+        record_recalibration(
+            self.root,
+            state.run_id,
+            {
+                "calibration_csv_path": "new.csv",
+                "calibration_json_path": "new.json",
+                "research_artifacts": {"review_report_path": "review.csv"},
+            },
+            clock=self.clock,
+        )
+        with state.manifest_path.open("r", encoding="utf-8") as file:
+            manifest = json.load(file)
+
+        self.assertEqual(manifest["calibration_csv_path"], "new.csv")
+        self.assertEqual(
+            manifest["recalibration"]["research_artifacts"][
+                "review_report_path"
+            ],
+            "review.csv",
+        )
 
 
 if __name__ == "__main__":

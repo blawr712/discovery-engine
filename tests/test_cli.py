@@ -81,6 +81,13 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--balanced-sample", "2", "--limit", "2"])
 
+    def test_parses_offline_recalibration_as_exclusive_action(self):
+        args = parse_args(["--recalibrate-run", "run-123"])
+
+        self.assertEqual(args.recalibrate_run, "run-123")
+        with self.assertRaises(SystemExit):
+            parse_args(["--recalibrate-run", "run-123", "--limit", "2"])
+
 
 if __name__ == "__main__":
     unittest.main()

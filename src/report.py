@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 from pathlib import Path
+import re
 import pandas as pd
 
 from src.config import OUTPUT_DIR, REPORTS_CONFIG
@@ -102,6 +103,207 @@ def export_candidate_report(
     output_path = output_directory / f"research_candidates_{run_id}.csv"
     frame.to_csv(output_path, index=False)
     return str(output_path)
+
+
+def export_experimental_research_reports(
+    results: list[dict],
+    calibration: dict,
+    run_id: str,
+    output_directory: Path | None = None,
+    review_n: int = 25,
+) -> dict:
+    """Export decision-ready reports for passing experimental scenarios."""
+    output_directory = Path(output_directory or OUTPUT_DIR)
+    output_directory.mkdir(parents=True, exist_ok=True)
+    summary = calibration["summary"]
+    calibration_rows = calibration["rows"]
+    result_lookup = {
+        str(row.get("ticker", "")): row
+        for row in results
+        if row.get("status") == "OK"
+    }
+    core_factors = set(
+        summary.get("coverage_neutral_model", {}).get("core_factors", [])
+    )
+    report_paths = {}
+    review_rows = []
+    composition = {}
+
+    for scenario, acceptance in summary.get("scenario_acceptance", {}).items():
+        weights = summary.get("blend_scenarios", {}).get(scenario, {})
+        if (
+            acceptance.get("status") != "pass"
+            or float(weights.get("fundamental_weight", 0)) <= 0
+        ):
+            continue
+        rank_field = f"experimental_{scenario}_rank"
+        score_field = f"experimental_{scenario}_score"
+        scenario_rows = []
+        for calibration_row in calibration_rows:
+            experimental_rank = calibration_row.get(rank_field)
+            if experimental_rank is None:
+                continue
+            ticker = str(calibration_row.get("ticker", ""))
+            source = result_lookup.get(ticker, {})
+            strengths, weaknesses, treatments = _fundamental_review(
+                source,
+                core_factors,
+            )
+            movement = (
+                calibration_row["official_rank"] - experimental_rank
+            )
+            scenario_rows.append({
+                "scenario": scenario,
+                "scenario_acceptance": acceptance.get("status"),
+                "experimental_rank": experimental_rank,
+                "official_rank": calibration_row.get("official_rank"),
+                "rank_movement": movement,
+                "movement_explanation": _movement_explanation(
+                    movement,
+                    calibration_row,
+                ),
+                "ticker": ticker,
+                "company_name": calibration_row.get("company_name"),
+                "country": calibration_row.get("country"),
+                "sector": calibration_row.get("sector"),
+                "industry": source.get("industry"),
+                "discovery_score": calibration_row.get("discovery_score"),
+                "technical_percentile": calibration_row.get(
+                    "technical_percentile"
+                ),
+                "experimental_score": calibration_row.get(score_field),
+                "core_fundamental_score": calibration_row.get(
+                    "core_fundamental_score"
+                ),
+                "core_fundamental_confidence": calibration_row.get(
+                    "core_fundamental_confidence"
+                ),
+                "peer_fundamental_percentile": calibration_row.get(
+                    "peer_fundamental_percentile"
+                ),
+                "fundamental_peer_group": calibration_row.get(
+                    "fundamental_peer_group"
+                ),
+                "core_strengths": strengths,
+                "core_weaknesses": weaknesses,
+                "data_treatments": treatments,
+                "outlier_flags": calibration_row.get("outlier_flags"),
+                "reason_flags": source.get("reason_flags"),
+            })
+        scenario_rows.sort(
+            key=lambda row: (row["experimental_rank"], row["ticker"])
+        )
+        slug = re.sub(r"[^A-Za-z0-9_-]+", "_", scenario).strip("_")
+        path = output_directory / f"research_{slug}_{run_id}.csv"
+        pd.DataFrame(scenario_rows).to_csv(path, index=False)
+        report_paths[scenario] = str(path)
+        review_rows.extend(scenario_rows[:review_n])
+        composition[scenario] = _composition_summary(scenario_rows)
+
+    review_path = output_directory / f"research_review_top{review_n}_{run_id}.csv"
+    pd.DataFrame(review_rows).to_csv(review_path, index=False)
+    summary_path = output_directory / f"research_scenarios_{run_id}.json"
+    with summary_path.open("w", encoding="utf-8") as file:
+        json.dump(
+            {
+                "run_id": run_id,
+                "official_order_authoritative": True,
+                "review_size_per_scenario": review_n,
+                "scenario_reports": report_paths,
+                "scenario_acceptance": summary.get("scenario_acceptance", {}),
+                "composition": composition,
+            },
+            file,
+            indent=2,
+            sort_keys=True,
+        )
+    return {
+        "scenario_report_paths": report_paths,
+        "review_report_path": str(review_path),
+        "scenario_summary_path": str(summary_path),
+    }
+
+
+def _fundamental_review(
+    row: dict,
+    core_factors: set[str],
+) -> tuple[str, str, str]:
+    breakdown = _json_dict(row.get("fundamental_breakdown"))
+    scored = []
+    treatments = []
+    for name, factor in breakdown.items():
+        if not isinstance(factor, dict):
+            continue
+        quality = str(factor.get("data_quality") or "unknown")
+        if factor.get("applicable", True) is False:
+            treatments.append(f"{name}: not applicable")
+            continue
+        if quality in {"missing", "invalid", "stale", "capped", "flagged"}:
+            treatments.append(f"{name}: {quality}")
+        if name not in core_factors or factor.get("available") is not True:
+            continue
+        maximum = _numeric(factor.get("max_points"), 0)
+        points = _numeric(factor.get("points"), 0)
+        ratio = points / maximum if maximum > 0 else 0
+        scored.append((ratio, name, str(factor.get("explanation", ""))))
+    strengths = [
+        f"{name}: {explanation}"
+        for ratio, name, explanation in sorted(scored, reverse=True)
+        if ratio >= 0.7
+    ][:3]
+    weaknesses = [
+        f"{name}: {explanation}"
+        for ratio, name, explanation in sorted(scored)
+        if ratio <= 0.4
+    ][:3]
+    return "; ".join(strengths), "; ".join(weaknesses), "; ".join(treatments)
+
+
+def _movement_explanation(movement: int, row: dict) -> str:
+    peer = _numeric(row.get("peer_fundamental_percentile"))
+    confidence = _numeric(row.get("core_fundamental_confidence"))
+    if movement > 0:
+        direction = f"Promoted {movement} positions"
+    elif movement < 0:
+        direction = f"Demoted {abs(movement)} positions"
+    else:
+        direction = "Rank unchanged"
+    if peer is None:
+        return f"{direction}; core peer percentile unavailable"
+    return (
+        f"{direction}; core peer percentile {peer:.1f} "
+        f"at {confidence or 0:.1f}% confidence"
+    )
+
+
+def _composition_summary(rows: list[dict]) -> dict:
+    result = {}
+    for cutoff in (25, 100):
+        top = rows[:cutoff]
+        result[f"top_{cutoff}"] = {
+            "companies": len(top),
+            "countries": _value_counts(top, "country"),
+            "sectors": _value_counts(top, "sector"),
+        }
+    return result
+
+
+def _value_counts(rows: list[dict], field: str) -> dict:
+    counts = {}
+    for row in rows:
+        value = str(row.get(field) or "UNKNOWN")
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _json_dict(value: object) -> dict:
+    if not value:
+        return {}
+    try:
+        result = json.loads(value) if isinstance(value, str) else value
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    return result if isinstance(result, dict) else {}
 
 
 def _factor_highlights(row: dict) -> tuple[str, str]:
