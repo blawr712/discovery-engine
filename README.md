@@ -94,8 +94,22 @@ The command uses the selected passing research scenario and exports JSON and
 Markdown containing identity, technical signals, core fundamental evidence,
 peer context, data-quality notes, and research questions. AI synthesis is
 disabled by default. The provider boundary, prompt versioning, response cache,
-and per-company failure isolation are present for optional sourced synthesis in
-the next increment; neither packets nor future AI output can modify ranking.
+and per-company failure isolation are present for optional sourced synthesis;
+neither packets nor future AI output can modify ranking.
+
+Primary-source evidence collection is a separate, explicit network action:
+
+```powershell
+$env:SEC_USER_AGENT = "Discovery Engine your-email@example.com"
+python main.py --research-run RUN_ID --top 10 --collect-sources
+```
+
+The collector retrieves recent SEC filings for U.S. candidates, conservatively
+paces requests, caches raw responses for seven days, and records publisher,
+URL, dates, source type, priority, and SHA-256 hash. Unsupported companies and
+source failures remain visible per candidate. A reviewed local manifest can
+add approved sources with `--source-manifest PATH`; its domains must first be
+allowlisted in `config/settings.json`. AI synthesis remains disabled.
 
 ## Documentation
 

@@ -46,9 +46,21 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         metavar="COUNT",
         help="research only the top COUNT selected candidates",
     )
+    parser.add_argument(
+        "--collect-sources",
+        action="store_true",
+        help="collect cached primary-source evidence for research packets",
+    )
+    parser.add_argument(
+        "--source-manifest",
+        metavar="PATH",
+        help="attach curated, hashed evidence from a local JSON manifest",
+    )
     args = parser.parse_args(arguments)
     if args.top is not None and args.research_run is None:
         parser.error("--top requires --research-run")
+    if (args.collect_sources or args.source_manifest) and args.research_run is None:
+        parser.error("source options require --research-run")
     return args
 
 

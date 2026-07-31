@@ -96,6 +96,17 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--top", "5"])
 
+    def test_source_collection_options_require_research_run(self):
+        args = parse_args([
+            "--research-run", "run-123", "--collect-sources",
+            "--source-manifest", "sources.json",
+        ])
+
+        self.assertTrue(args.collect_sources)
+        self.assertEqual(args.source_manifest, "sources.json")
+        with self.assertRaises(SystemExit):
+            parse_args(["--collect-sources"])
+
 
 if __name__ == "__main__":
     unittest.main()

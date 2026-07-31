@@ -1,3 +1,7 @@
+import os
+import json
+from pathlib import Path
+
 from src.universe import UniverseBuilder
 from src.data_sources.yfinance_source import YFinanceSource
 from src.data_sources.cached_source import CachedMarketDataSource
@@ -22,6 +26,14 @@ from src.research import (
     ResearchRunner,
     build_research_packets,
     export_research_packets,
+)
+from src.evidence import (
+    HttpCache,
+    ManifestEvidenceProvider,
+    SecEdgarProvider,
+    attach_evidence,
+    collect_evidence,
+    export_evidence,
 )
 from src.cli import parse_args, select_universe
 from src.config import (
@@ -73,6 +85,8 @@ def main(arguments=None):
         research_saved_run(
             args.research_run,
             args.top or RESEARCH_DEFAULT_TOP,
+            collect_sources=args.collect_sources,
+            source_manifest=args.source_manifest,
         )
         return
 
@@ -270,7 +284,12 @@ def recalibrate_saved_run(run_id: str) -> None:
     print(f"Manifest updated: {manifest_path}")
 
 
-def research_saved_run(run_id: str, top_n: int) -> None:
+def research_saved_run(
+    run_id: str,
+    top_n: int,
+    collect_sources: bool = False,
+    source_manifest: str | None = None,
+) -> None:
     """Build deterministic research packets from a completed local run."""
     try:
         _, results = load_saved_run(RUN_DIR, run_id)
@@ -282,6 +301,34 @@ def research_saved_run(run_id: str, top_n: int) -> None:
         )
     except (FileNotFoundError, ValueError) as error:
         raise SystemExit(str(error)) from error
+    evidence_artifact = None
+    providers = []
+    if collect_sources:
+        user_agent = os.environ.get("SEC_USER_AGENT", "").strip()
+        if not user_agent:
+            raise SystemExit(
+                "--collect-sources requires SEC_USER_AGENT, for example "
+                "'Discovery Engine your-email@example.com'."
+            )
+        providers.append(SecEdgarProvider(user_agent, HttpCache()))
+    if source_manifest:
+        try:
+            providers.append(ManifestEvidenceProvider(Path(source_manifest)))
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            raise SystemExit(f"Invalid source manifest: {error}") from error
+    if providers:
+        evidence = collect_evidence(packets, providers)
+        attach_evidence(packets, evidence)
+        evidence_artifact = export_evidence(evidence, run_id, OUTPUT_DIR)
+        metadata["evidence"] = {
+            "collection_enabled": True,
+            "providers": [provider.name for provider in providers],
+            "document_count": evidence["document_count"],
+            "failure_count": evidence["failure_count"],
+            "evidence_manifest_path": evidence_artifact,
+        }
+    else:
+        metadata["evidence"] = {"collection_enabled": False}
     outputs = ResearchRunner(provider=None).run(packets)
     artifacts = export_research_packets(
         packets,
@@ -290,6 +337,8 @@ def research_saved_run(run_id: str, top_n: int) -> None:
         run_id,
         output_directory=OUTPUT_DIR,
     )
+    if evidence_artifact:
+        artifacts["evidence_manifest_path"] = evidence_artifact
     manifest_path = record_research_packets(
         RUN_DIR,
         run_id,
@@ -300,6 +349,8 @@ def research_saved_run(run_id: str, top_n: int) -> None:
     print(f"Selected scenario: {metadata['selected_scenario']}")
     print(f"Research packets: {len(packets)}")
     print("AI synthesis: disabled (packet-only mode)")
+    if evidence_artifact:
+        print(f"Evidence manifest saved to: {evidence_artifact}")
     print(f"JSON packets saved to: {artifacts['research_packets_json_path']}")
     print(
         "Markdown packets saved to: "

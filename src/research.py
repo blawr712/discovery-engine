@@ -105,6 +105,7 @@ class ResearchRunner:
                 )
                 if not isinstance(response, dict):
                     raise TypeError("Research provider must return a dictionary.")
+                _validate_synthesis_citations(packet, response)
                 self.cache.put(packet, response)
                 outputs.append({
                     **base,
@@ -191,6 +192,17 @@ def build_research_packets(
             "source_policy": {
                 "external_sources_attached": False,
                 "synthesis_must_not_change_rank": True,
+                "computed_fields_are_not_source_claims": True,
+                "ai_interpretation_must_be_labeled": True,
+            },
+            "claim_classes": {
+                "computed": [
+                    "selected_rank", "official_rank", "discovery_score",
+                    "technical_percentile", "selected_research_score",
+                    "core_fundamental_score", "peer_fundamental_percentile",
+                ],
+                "sourced": [],
+                "ai_interpretation": [],
             },
         })
     return packets, {
@@ -213,6 +225,24 @@ def build_research_prompt(packet: dict, prompt_version: str) -> str:
         "unanswered_questions, and citations. Packet: "
         + json.dumps(packet, sort_keys=True, separators=(",", ":"))
     )
+
+
+def _validate_synthesis_citations(packet: dict, response: dict) -> None:
+    """Reject citations that do not resolve to an attached evidence document."""
+    citations = response.get("citations", [])
+    if not isinstance(citations, list):
+        raise ValueError("Research citations must be a list.")
+    allowed = {
+        (str(row.get("url")), str(row.get("content_hash")))
+        for row in packet.get("evidence_documents", [])
+        if isinstance(row, dict)
+    }
+    for citation in citations:
+        if not isinstance(citation, dict):
+            raise ValueError("Each research citation must be an object.")
+        key = (str(citation.get("url")), str(citation.get("content_hash")))
+        if key not in allowed:
+            raise ValueError("Research citation does not match attached evidence.")
 
 
 def export_research_packets(

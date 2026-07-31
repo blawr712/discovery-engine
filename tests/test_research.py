@@ -45,6 +45,11 @@ class FailingProvider:
         return {"business_overview": "ok", "citations": []}
 
 
+class UnverifiedCitationProvider:
+    def generate(self, packet, prompt):
+        return {"citations": [{"url": "https://example.com", "content_hash": "x" * 64}]}
+
+
 class ResearchTests(unittest.TestCase):
     def setUp(self):
         self.results = [
@@ -165,6 +170,13 @@ class ResearchTests(unittest.TestCase):
 
         self.assertEqual(failed[0]["status"], "error")
         self.assertEqual(failed[1]["status"], "complete")
+
+    def test_runner_rejects_citations_not_present_in_packet_evidence(self):
+        packets, _ = build_research_packets(self.results, 1, calibration=self.calibration)
+        result = ResearchRunner(UnverifiedCitationProvider()).run(packets)
+
+        self.assertEqual(result[0]["status"], "error")
+        self.assertIn("does not match attached evidence", result[0]["error"])
 
     def test_packet_only_mode_and_exports(self):
         packets, metadata = build_research_packets(

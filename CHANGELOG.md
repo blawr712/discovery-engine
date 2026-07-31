@@ -48,6 +48,11 @@
 - Added persistent synthesis caching and per-company provider failure isolation
 - Added JSON and Markdown research artifacts with manifest provenance
 - Kept AI synthesis disabled by default and unable to change scores or ranks
+- Added opt-in, cached primary SEC filing collection for research candidates
+- Added curated source manifests with HTTPS allowlists and source priorities
+- Added evidence freshness, SHA-256 hashes, deduplication, and failure isolation
+- Added citation validation against attached evidence and explicit claim classes
+- Added evidence provenance to research packets and saved run manifests
 
 ## v0.2.0 Performance — 2026-07-25
 

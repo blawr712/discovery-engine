@@ -52,6 +52,14 @@
         "ai_synthesis_enabled": false,
         "default_top_candidates": 10,
         "prompt_version": "v0.3-research-1",
-        "cache_directory": "data/cache/research"
+        "cache_directory": "data/cache/research",
+        "evidence": {
+            "cache_directory": "data/cache/evidence",
+            "cache_ttl_hours": 168,
+            "maximum_documents_per_company": 5,
+            "maximum_age_days": 730,
+            "allowed_domains": ["sec.gov"],
+            "sec_forms": ["10-K", "10-Q", "8-K", "20-F", "40-F", "6-K"]
+        }
     }
 }

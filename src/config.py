@@ -94,6 +94,13 @@ RESEARCH_CACHE_DIR = BASE_DIR / RESEARCH_CONFIG.get(
     "cache_directory",
     "data/cache/research",
 )
+EVIDENCE_CONFIG = RESEARCH_CONFIG.get("evidence", {})
+EVIDENCE_CACHE_DIR = BASE_DIR / EVIDENCE_CONFIG.get("cache_directory", "data/cache/evidence")
+EVIDENCE_TTL_HOURS = float(EVIDENCE_CONFIG.get("cache_ttl_hours", 168))
+EVIDENCE_MAX_DOCUMENTS = int(EVIDENCE_CONFIG.get("maximum_documents_per_company", 5))
+EVIDENCE_MAX_AGE_DAYS = int(EVIDENCE_CONFIG.get("maximum_age_days", 730))
+EVIDENCE_ALLOWED_DOMAINS = tuple(EVIDENCE_CONFIG.get("allowed_domains", ["sec.gov"]))
+EVIDENCE_SEC_FORMS = tuple(EVIDENCE_CONFIG.get("sec_forms", ["10-K", "10-Q", "8-K", "20-F", "40-F", "6-K"]))
 
 BENCHMARKS = STRATEGY["benchmarks"]
 
