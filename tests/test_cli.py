@@ -88,6 +88,14 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--recalibrate-run", "run-123", "--limit", "2"])
 
+    def test_research_run_accepts_top_and_rejects_top_alone(self):
+        args = parse_args(["--research-run", "run-123", "--top", "5"])
+
+        self.assertEqual(args.research_run, "run-123")
+        self.assertEqual(args.top, 5)
+        with self.assertRaises(SystemExit):
+            parse_args(["--top", "5"])
+
 
 if __name__ == "__main__":
     unittest.main()

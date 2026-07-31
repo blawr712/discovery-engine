@@ -9,6 +9,7 @@ from src.run_state import (
     build_run_fingerprint,
     load_saved_run,
     record_recalibration,
+    record_research_packets,
     summarize_results,
 )
 
@@ -273,6 +274,32 @@ class RunStateTests(unittest.TestCase):
                 "review_report_path"
             ],
             "review.csv",
+        )
+
+    def test_records_research_packet_artifacts(self):
+        state = RunState.start_or_resume(
+            self.root,
+            "fingerprint",
+            1,
+            clock=self.clock,
+        )
+        state.record_result(0, {"ticker": "ONE", "status": "OK"})
+        state.complete([{"ticker": "ONE", "status": "OK"}], "report.csv")
+
+        record_research_packets(
+            self.root,
+            state.run_id,
+            {"research_packets_json_path": "packets.json"},
+            clock=self.clock,
+        )
+        with state.manifest_path.open("r", encoding="utf-8") as file:
+            manifest = json.load(file)
+
+        self.assertEqual(
+            manifest["research_packet_artifacts"][
+                "research_packets_json_path"
+            ],
+            "packets.json",
         )
 
 

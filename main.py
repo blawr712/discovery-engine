@@ -16,6 +16,12 @@ from src.run_state import (
     build_run_fingerprint,
     load_saved_run,
     record_recalibration,
+    record_research_packets,
+)
+from src.research import (
+    ResearchRunner,
+    build_research_packets,
+    export_research_packets,
 )
 from src.cli import parse_args, select_universe
 from src.config import (
@@ -44,6 +50,7 @@ from src.config import (
     PRICE_INTERVAL_SECONDS,
     RATE_LIMIT_COOLDOWN_SECONDS,
     MAX_RATE_LIMIT_COOLDOWN_EVENTS,
+    RESEARCH_DEFAULT_TOP,
 )
 
 
@@ -61,6 +68,12 @@ def main(arguments=None):
     args = parse_args(arguments)
     if args.recalibrate_run:
         recalibrate_saved_run(args.recalibrate_run)
+        return
+    if args.research_run:
+        research_saved_run(
+            args.research_run,
+            args.top or RESEARCH_DEFAULT_TOP,
+        )
         return
 
     provider = RateLimitedMarketDataSource(
@@ -253,6 +266,44 @@ def recalibrate_saved_run(run_id: str) -> None:
     print(
         "Selected v0.3 research queue saved to: "
         f"{research['selected_research_report_path']}"
+    )
+    print(f"Manifest updated: {manifest_path}")
+
+
+def research_saved_run(run_id: str, top_n: int) -> None:
+    """Build deterministic research packets from a completed local run."""
+    try:
+        _, results = load_saved_run(RUN_DIR, run_id)
+        calibration = build_calibration(results)
+        packets, metadata = build_research_packets(
+            results,
+            top_n,
+            calibration=calibration,
+        )
+    except (FileNotFoundError, ValueError) as error:
+        raise SystemExit(str(error)) from error
+    outputs = ResearchRunner(provider=None).run(packets)
+    artifacts = export_research_packets(
+        packets,
+        outputs,
+        metadata,
+        run_id,
+        output_directory=OUTPUT_DIR,
+    )
+    manifest_path = record_research_packets(
+        RUN_DIR,
+        run_id,
+        artifacts,
+    )
+
+    print(f"Offline research packets complete for run: {run_id}")
+    print(f"Selected scenario: {metadata['selected_scenario']}")
+    print(f"Research packets: {len(packets)}")
+    print("AI synthesis: disabled (packet-only mode)")
+    print(f"JSON packets saved to: {artifacts['research_packets_json_path']}")
+    print(
+        "Markdown packets saved to: "
+        f"{artifacts['research_packets_markdown_path']}"
     )
     print(f"Manifest updated: {manifest_path}")
 

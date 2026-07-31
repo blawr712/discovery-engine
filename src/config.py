@@ -82,6 +82,19 @@ RETRY_ERRORS_ON_RESUME = RUN_STATE_CONFIG.get(
     True,
 )
 
+RESEARCH_CONFIG = SETTINGS.get("research", {})
+RESEARCH_AI_ENABLED = RESEARCH_CONFIG.get("ai_synthesis_enabled", False)
+RESEARCH_DEFAULT_TOP = int(
+    RESEARCH_CONFIG.get("default_top_candidates", 10)
+)
+RESEARCH_PROMPT_VERSION = str(
+    RESEARCH_CONFIG.get("prompt_version", "v0.3-research-1")
+)
+RESEARCH_CACHE_DIR = BASE_DIR / RESEARCH_CONFIG.get(
+    "cache_directory",
+    "data/cache/research",
+)
+
 BENCHMARKS = STRATEGY["benchmarks"]
 
 MARKET_CAP_CONFIG = STRATEGY["universe"]["market_cap"]

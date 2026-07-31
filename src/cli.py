@@ -35,7 +35,21 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         metavar="RUN_ID",
         help="regenerate calibration artifacts from a completed saved run",
     )
-    return parser.parse_args(arguments)
+    selection.add_argument(
+        "--research-run",
+        metavar="RUN_ID",
+        help="build research packets from a completed saved run",
+    )
+    parser.add_argument(
+        "--top",
+        type=_positive_integer,
+        metavar="COUNT",
+        help="research only the top COUNT selected candidates",
+    )
+    args = parser.parse_args(arguments)
+    if args.top is not None and args.research_run is None:
+        parser.error("--top requires --research-run")
+    return args
 
 
 def select_universe(

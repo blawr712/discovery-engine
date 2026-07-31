@@ -42,6 +42,12 @@
 - Added conservative automatic scenario recommendation with gate validation
 - Selected the passing 80/20 model as the configured v0.3 research scenario
 - Added the final selected v0.3 research-candidate queue and decision record
+- Added offline top-N research-packet generation from the selected v0.3 queue
+- Added deterministic technical, fundamental, peer, quality, and question data
+- Added a pluggable research-provider interface and versioned safe prompt
+- Added persistent synthesis caching and per-company provider failure isolation
+- Added JSON and Markdown research artifacts with manifest provenance
+- Kept AI synthesis disabled by default and unable to change scores or ranks
 
 ## v0.2.0 Performance — 2026-07-25
 

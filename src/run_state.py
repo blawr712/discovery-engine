@@ -328,6 +328,24 @@ def record_recalibration(
     return str(manifest_path)
 
 
+def record_research_packets(
+    root_directory: Path,
+    run_id: str,
+    artifacts: dict,
+    clock: Callable[[], datetime] | None = None,
+) -> str:
+    """Record deterministic research-packet provenance on a saved run."""
+    manifest, _ = load_saved_run(root_directory, run_id)
+    clock = clock or (lambda: datetime.now(timezone.utc))
+    manifest["research_packet_artifacts"] = {
+        "completed_at": _utc_iso(clock()),
+        **artifacts,
+    }
+    manifest_path = Path(root_directory) / run_id / "manifest.json"
+    _atomic_write_json(manifest_path, manifest)
+    return str(manifest_path)
+
+
 def _atomic_write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, name = tempfile.mkstemp(

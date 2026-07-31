@@ -83,6 +83,20 @@ agreement at several cutoffs. The configured 80% technical / 20% fundamental
 scenario is selected only while it passes every calibration gate; the original
 Discovery Score and official technical report remain unchanged.
 
+Deterministic research packets can be generated from a completed run without
+network or AI calls:
+
+```powershell
+python main.py --research-run RUN_ID --top 10
+```
+
+The command uses the selected passing research scenario and exports JSON and
+Markdown containing identity, technical signals, core fundamental evidence,
+peer context, data-quality notes, and research questions. AI synthesis is
+disabled by default. The provider boundary, prompt versioning, response cache,
+and per-company failure isolation are present for optional sourced synthesis in
+the next increment; neither packets nor future AI output can modify ranking.
+
 ## Documentation
 
 - PROJECT_CONTEXT.md
