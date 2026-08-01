@@ -118,6 +118,16 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--synthesize", "--collect-sources"])
 
+    def test_audit_research_is_an_exclusive_offline_action(self):
+        args = parse_args(["--audit-research", "run-123"])
+
+        self.assertEqual(args.audit_research, "run-123")
+        with self.assertRaises(SystemExit):
+            parse_args(["--audit-research", "run-123", "--research-run", "run-123"])
+
+        final = parse_args(["--finalize-research-review", "run-123"])
+        self.assertEqual(final.finalize_research_review, "run-123")
+
 
 if __name__ == "__main__":
     unittest.main()

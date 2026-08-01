@@ -132,6 +132,27 @@ provider, and model. The API request disables response storage. Readable briefs
 and structured validation metrics are exported without changing any score or
 rank. Candidates without evidence are skipped and do not trigger an AI call.
 
+Audit the latest saved research artifact without SEC or AI calls:
+
+```powershell
+python main.py --audit-research RUN_ID
+```
+
+This exports automated evidence, synthesis, citation, section-completeness,
+error, sourced-evidence-use, and ranking-integrity gates plus a claim-level
+`research_human_review` CSV. Automated success produces only
+`pending_human_review`. Reviewers must mark every row's `accuracy_review` and
+`citation_support_review` as `pass` or `fail`, and `human_review_status` as
+`approved` or `rejected`. After saving the CSV, finalize it offline:
+
+```powershell
+python main.py --finalize-research-review RUN_ID
+```
+
+Finalization produces a separate approval, rejection, or incomplete decision
+record and stores its provenance in the run manifest. It cannot approve a run
+whose automated gates did not pass.
+
 ## Documentation
 
 - PROJECT_CONTEXT.md

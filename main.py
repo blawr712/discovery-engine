@@ -19,8 +19,11 @@ from src.run_state import (
     RunState,
     build_run_fingerprint,
     load_saved_run,
+    load_saved_manifest,
     record_recalibration,
     record_research_packets,
+    record_research_audit,
+    record_research_acceptance,
 )
 from src.research import (
     ResearchCache,
@@ -37,6 +40,7 @@ from src.evidence import (
     export_evidence,
 )
 from src.openai_research import OpenAIResearchProvider
+from src.research_audit import export_research_audit, finalize_research_review
 from src.cli import parse_args, select_universe
 from src.config import (
     BENCHMARKS,
@@ -87,6 +91,12 @@ def main(arguments=None):
     args = parse_args(arguments)
     if args.recalibrate_run:
         recalibrate_saved_run(args.recalibrate_run)
+        return
+    if args.audit_research:
+        audit_saved_research(args.audit_research)
+        return
+    if args.finalize_research_review:
+        finalize_saved_research_review(args.finalize_research_review)
         return
     if args.research_run:
         research_saved_run(
@@ -416,6 +426,78 @@ def research_saved_run(
         f"{artifacts['research_briefs_markdown_path']}"
     )
     print(f"Manifest updated: {manifest_path}")
+
+
+def audit_saved_research(run_id: str) -> None:
+    """Audit the latest saved research artifact without external providers."""
+    try:
+        manifest = load_saved_manifest(RUN_DIR, run_id)
+        artifact = manifest.get("research_packet_artifacts") or {}
+        source_value = artifact.get("research_packets_json_path")
+        if not source_value:
+            raise ValueError("Saved run has no research packet artifact to audit.")
+        source_path = Path(source_value).resolve()
+        if not source_path.is_relative_to(OUTPUT_DIR.resolve()):
+            raise ValueError("Research artifact is outside the configured export directory.")
+        with source_path.open("r", encoding="utf-8") as file:
+            payload = json.load(file)
+        if payload.get("run_id") != run_id:
+            raise ValueError("Research artifact run ID does not match the requested run.")
+    except (FileNotFoundError, OSError, ValueError, json.JSONDecodeError) as error:
+        raise SystemExit(f"Unable to audit saved research: {error}") from error
+
+    artifacts = export_research_audit(payload, run_id, OUTPUT_DIR)
+    manifest_path = record_research_audit(RUN_DIR, run_id, artifacts)
+    metrics = artifacts["metrics"]
+    print(f"Offline research audit complete for run: {run_id}")
+    print(f"Automated status: {artifacts['automated_status']}")
+    print(f"Release status: {artifacts['release_status']}")
+    print(f"Candidates audited: {metrics['candidate_count']}")
+    print(f"Evidence coverage: {metrics['evidence_coverage_percent']}%")
+    print(f"Synthesis completion: {metrics['synthesis_completion_percent']}%")
+    print(f"Citation coverage: {metrics['citation_coverage_percent']}%")
+    print(f"Section coverage: {metrics['section_coverage_percent']}%")
+    print(f"Human review rows: {artifacts['review_row_count']}")
+    if artifacts["failed_gates"]:
+        print(f"Failed gates: {', '.join(artifacts['failed_gates'])}")
+    if artifacts["not_evaluated_gates"]:
+        print(f"Not evaluated: {', '.join(artifacts['not_evaluated_gates'])}")
+    print(f"Audit saved to: {artifacts['research_audit_json_path']}")
+    print(f"Human review queue saved to: {artifacts['research_human_review_csv_path']}")
+    print(f"Manifest updated: {manifest_path}")
+
+
+def finalize_saved_research_review(run_id: str) -> None:
+    """Finalize a completed claim-level human review for a saved run."""
+    try:
+        manifest = load_saved_manifest(RUN_DIR, run_id)
+        artifacts = manifest.get("research_audit_artifacts") or {}
+        audit_path = _validated_export_path(artifacts.get("research_audit_json_path"))
+        review_path = _validated_export_path(artifacts.get("research_human_review_csv_path"))
+        decision = finalize_research_review(audit_path, review_path, run_id, OUTPUT_DIR)
+    except (FileNotFoundError, OSError, ValueError, json.JSONDecodeError) as error:
+        raise SystemExit(f"Unable to finalize research review: {error}") from error
+    manifest_path = record_research_acceptance(RUN_DIR, run_id, decision)
+    print(f"Research review finalized for run: {run_id}")
+    print(f"Human decision: {decision['human_review_decision']}")
+    print(f"Review rows: {decision['review_row_count']}")
+    if decision["pending_csv_rows"]:
+        print(f"Pending CSV rows: {decision['pending_csv_rows']}")
+    if decision["rejected_csv_rows"]:
+        print(f"Rejected CSV rows: {decision['rejected_csv_rows']}")
+    print(f"Acceptance record saved to: {decision['research_acceptance_json_path']}")
+    print(f"Manifest updated: {manifest_path}")
+
+
+def _validated_export_path(value: object) -> Path:
+    if not value:
+        raise ValueError("Saved run is missing a required research review artifact.")
+    path = Path(str(value)).resolve()
+    if not path.is_relative_to(OUTPUT_DIR.resolve()):
+        raise ValueError("Research review artifact is outside the export directory.")
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    return path
 
 
 if __name__ == "__main__":

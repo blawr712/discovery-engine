@@ -40,6 +40,16 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         metavar="RUN_ID",
         help="build research packets from a completed saved run",
     )
+    selection.add_argument(
+        "--audit-research",
+        metavar="RUN_ID",
+        help="audit saved research artifacts without network or AI calls",
+    )
+    selection.add_argument(
+        "--finalize-research-review",
+        metavar="RUN_ID",
+        help="finalize an audited research run from its completed review CSV",
+    )
     parser.add_argument(
         "--top",
         type=_positive_integer,

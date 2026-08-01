@@ -271,20 +271,9 @@ def load_saved_run(
     run_id: str,
 ) -> tuple[dict, list[dict]]:
     """Load a complete run without initializing any market-data provider."""
+    manifest = load_saved_manifest(root_directory, run_id)
     run_id = str(run_id).strip()
-    if not RUN_ID_PATTERN.fullmatch(run_id):
-        raise ValueError("Run ID contains invalid characters.")
     run_directory = Path(root_directory) / run_id
-    manifest_path = run_directory / "manifest.json"
-    if not manifest_path.is_file():
-        raise FileNotFoundError(f"Saved run not found: {run_id}")
-    try:
-        with manifest_path.open("r", encoding="utf-8") as file:
-            manifest = json.load(file)
-    except (OSError, json.JSONDecodeError, TypeError) as error:
-        raise ValueError(f"Saved run manifest is unreadable: {run_id}") from error
-    if manifest.get("status") not in {"complete", "completed_with_errors"}:
-        raise ValueError(f"Saved run is not complete: {run_id}")
 
     checkpoint_directory = run_directory / "checkpoints"
     indexed_results = {}
@@ -308,6 +297,27 @@ def load_saved_run(
     return manifest, [indexed_results[index] for index in sorted(indexed_results)]
 
 
+def load_saved_manifest(root_directory: Path, run_id: str) -> dict:
+    """Load and validate a completed run manifest without checkpoints."""
+    run_id = str(run_id).strip()
+    if not RUN_ID_PATTERN.fullmatch(run_id):
+        raise ValueError("Run ID contains invalid characters.")
+    run_directory = Path(root_directory) / run_id
+    manifest_path = run_directory / "manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Saved run not found: {run_id}")
+    try:
+        with manifest_path.open("r", encoding="utf-8") as file:
+            manifest = json.load(file)
+    except (OSError, json.JSONDecodeError, TypeError) as error:
+        raise ValueError(f"Saved run manifest is unreadable: {run_id}") from error
+    if manifest.get("status") not in {"complete", "completed_with_errors"}:
+        raise ValueError(f"Saved run is not complete: {run_id}")
+    if manifest.get("run_id") != run_id:
+        raise ValueError(f"Saved run manifest ID does not match: {run_id}")
+    return manifest
+
+
 def record_recalibration(
     root_directory: Path,
     run_id: str,
@@ -315,7 +325,7 @@ def record_recalibration(
     clock: Callable[[], datetime] | None = None,
 ) -> str:
     """Record offline artifact provenance on an existing run manifest."""
-    manifest, _ = load_saved_run(root_directory, run_id)
+    manifest = load_saved_manifest(root_directory, run_id)
     clock = clock or (lambda: datetime.now(timezone.utc))
     manifest["calibration_csv_path"] = artifacts.get("calibration_csv_path")
     manifest["calibration_json_path"] = artifacts.get("calibration_json_path")
@@ -335,9 +345,45 @@ def record_research_packets(
     clock: Callable[[], datetime] | None = None,
 ) -> str:
     """Record deterministic research-packet provenance on a saved run."""
-    manifest, _ = load_saved_run(root_directory, run_id)
+    manifest = load_saved_manifest(root_directory, run_id)
     clock = clock or (lambda: datetime.now(timezone.utc))
     manifest["research_packet_artifacts"] = {
+        "completed_at": _utc_iso(clock()),
+        **artifacts,
+    }
+    manifest_path = Path(root_directory) / run_id / "manifest.json"
+    _atomic_write_json(manifest_path, manifest)
+    return str(manifest_path)
+
+
+def record_research_audit(
+    root_directory: Path,
+    run_id: str,
+    artifacts: dict,
+    clock: Callable[[], datetime] | None = None,
+) -> str:
+    """Record offline research-audit provenance on a saved run."""
+    manifest = load_saved_manifest(root_directory, run_id)
+    clock = clock or (lambda: datetime.now(timezone.utc))
+    manifest["research_audit_artifacts"] = {
+        "completed_at": _utc_iso(clock()),
+        **artifacts,
+    }
+    manifest_path = Path(root_directory) / run_id / "manifest.json"
+    _atomic_write_json(manifest_path, manifest)
+    return str(manifest_path)
+
+
+def record_research_acceptance(
+    root_directory: Path,
+    run_id: str,
+    artifacts: dict,
+    clock: Callable[[], datetime] | None = None,
+) -> str:
+    """Record the explicit human research-review decision."""
+    manifest = load_saved_manifest(root_directory, run_id)
+    clock = clock or (lambda: datetime.now(timezone.utc))
+    manifest["research_acceptance"] = {
         "completed_at": _utc_iso(clock()),
         **artifacts,
     }

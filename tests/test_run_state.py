@@ -10,6 +10,8 @@ from src.run_state import (
     load_saved_run,
     record_recalibration,
     record_research_packets,
+    record_research_audit,
+    record_research_acceptance,
     summarize_results,
 )
 
@@ -300,6 +302,38 @@ class RunStateTests(unittest.TestCase):
                 "research_packets_json_path"
             ],
             "packets.json",
+        )
+
+    def test_records_research_audit_provenance(self):
+        state = RunState.start_or_resume(self.root, "fingerprint", 1, clock=self.clock)
+        state.record_result(0, {"ticker": "ONE", "status": "OK"})
+        state.complete([{"ticker": "ONE", "status": "OK"}], "report.csv")
+
+        record_research_audit(
+            self.root,
+            state.run_id,
+            {"research_audit_json_path": "audit.json", "automated_status": "pass"},
+            clock=self.clock,
+        )
+        with state.manifest_path.open("r", encoding="utf-8") as file:
+            manifest = json.load(file)
+
+        self.assertEqual(
+            manifest["research_audit_artifacts"]["research_audit_json_path"],
+            "audit.json",
+        )
+
+        record_research_acceptance(
+            self.root,
+            state.run_id,
+            {"human_review_decision": "approved"},
+            clock=self.clock,
+        )
+        with state.manifest_path.open("r", encoding="utf-8") as file:
+            manifest = json.load(file)
+        self.assertEqual(
+            manifest["research_acceptance"]["human_review_decision"],
+            "approved",
         )
 
 

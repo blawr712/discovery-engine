@@ -67,6 +67,14 @@
             "model": "gpt-5.6-sol",
             "maximum_output_tokens": 4000,
             "api_base_url": "https://api.openai.com/v1"
+        },
+        "review": {
+            "minimum_evidence_coverage_percent": 80,
+            "minimum_synthesis_completion_percent": 100,
+            "minimum_citation_coverage_percent": 100,
+            "minimum_section_coverage_percent": 75,
+            "minimum_sourced_claims_per_synthesis": 1,
+            "maximum_synthesis_errors": 0
         }
     }
 }

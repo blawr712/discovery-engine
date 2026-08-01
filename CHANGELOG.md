@@ -60,6 +60,10 @@
 - Added interpretation labels and rejection of ranking or recommendation fields
 - Added model-aware synthesis caching, failure isolation, and no-evidence skips
 - Added validated claim/citation metrics and readable research brief exports
+- Added offline saved-research audits with configurable acceptance gates
+- Added country evidence, synthesis, citation, section, error, and integrity metrics
+- Added claim-level human-review queues with explicit accuracy/support decisions
+- Added guarded research-review finalization and manifest acceptance provenance
 
 ## v0.2.0 Performance — 2026-07-25
 
