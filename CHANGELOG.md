@@ -53,6 +53,7 @@
 - Added evidence freshness, SHA-256 hashes, deduplication, and failure isolation
 - Added citation validation against attached evidence and explicit claim classes
 - Added evidence provenance to research packets and saved run manifests
+- Added evidence cache hit, miss, expiry, and read-error run statistics
 
 ## v0.2.0 Performance — 2026-07-25
 

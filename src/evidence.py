@@ -32,6 +32,19 @@ QUALITY_PRIORITY = {
 }
 
 
+@dataclass
+class EvidenceCacheStats:
+    """Operational counters for evidence-cache decisions."""
+
+    hits: int = 0
+    misses: int = 0
+    expired: int = 0
+    read_errors: int = 0
+
+    def as_dict(self) -> dict:
+        return asdict(self)
+
+
 @dataclass(frozen=True)
 class EvidenceDocument:
     """Auditable metadata for one source document."""
@@ -70,6 +83,7 @@ class HttpCache:
         self.ttl = timedelta(hours=ttl_hours)
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.fetcher = fetcher or _fetch
+        self.stats = EvidenceCacheStats()
 
     def get(self, url: str, headers: dict[str, str]) -> tuple[bytes, bool]:
         path = self.directory / f"{hashlib.sha256(url.encode()).hexdigest()}.json"
@@ -78,9 +92,14 @@ class HttpCache:
                 value = json.loads(path.read_text(encoding="utf-8"))
                 stored = _parse_time(value["retrieved_at"])
                 if self.clock() - stored <= self.ttl:
+                    self.stats.hits += 1
                     return bytes.fromhex(value["content_hex"]), True
             except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
-                pass
+                self.stats.read_errors += 1
+            else:
+                self.stats.expired += 1
+        else:
+            self.stats.misses += 1
         content = self.fetcher(url, headers)
         path.parent.mkdir(parents=True, exist_ok=True)
         _atomic_json(path, {
@@ -112,12 +131,15 @@ class SecEdgarProvider:
         self.forms = set(forms)
         self.max_documents = max_documents
         self.max_age_days = max_age_days
+        self._ticker_mapping: dict | None = None
 
     def collect(self, packet: dict) -> list[EvidenceDocument]:
         if str(packet.get("country", "")).upper() != "US":
             return []
         ticker = str(packet.get("ticker", "")).upper()
-        mapping = self._json(self.ticker_map_url)
+        if self._ticker_mapping is None:
+            self._ticker_mapping = self._json(self.ticker_map_url)
+        mapping = self._ticker_mapping
         match = next(
             (row for row in mapping.values() if str(row.get("ticker", "")).upper() == ticker),
             None,
@@ -234,13 +256,33 @@ def collect_evidence(packets: list[dict], providers: list[EvidenceProvider]) -> 
             "failures": failures,
             "invalid_documents": invalid,
         })
+    cache_stats = _aggregate_cache_stats(providers)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source_categories": QUALITY_PRIORITY,
         "companies": companies,
         "document_count": sum(len(row["documents"]) for row in companies),
         "failure_count": sum(len(row["failures"]) for row in companies),
+        "cache": cache_stats,
     }
+
+
+def _aggregate_cache_stats(providers: list[EvidenceProvider]) -> dict:
+    totals = EvidenceCacheStats()
+    seen = set()
+    for provider in providers:
+        cache = getattr(provider, "cache", None)
+        if cache is None or id(cache) in seen:
+            continue
+        seen.add(id(cache))
+        stats = getattr(cache, "stats", None)
+        if stats is None:
+            continue
+        totals.hits += stats.hits
+        totals.misses += stats.misses
+        totals.expired += stats.expired
+        totals.read_errors += stats.read_errors
+    return totals.as_dict()
 
 
 def attach_evidence(packets: list[dict], evidence: dict) -> None:

@@ -325,6 +325,7 @@ def research_saved_run(
             "providers": [provider.name for provider in providers],
             "document_count": evidence["document_count"],
             "failure_count": evidence["failure_count"],
+            "cache": evidence["cache"],
             "evidence_manifest_path": evidence_artifact,
         }
     else:
@@ -350,6 +351,13 @@ def research_saved_run(
     print(f"Research packets: {len(packets)}")
     print("AI synthesis: disabled (packet-only mode)")
     if evidence_artifact:
+        cache = metadata["evidence"]["cache"]
+        print(f"Evidence documents: {metadata['evidence']['document_count']}")
+        print(f"Evidence failures: {metadata['evidence']['failure_count']}")
+        print(f"Evidence cache hits: {cache['hits']}")
+        print(f"Evidence cache misses: {cache['misses']}")
+        print(f"Evidence cache expired: {cache['expired']}")
+        print(f"Evidence cache read errors: {cache['read_errors']}")
         print(f"Evidence manifest saved to: {evidence_artifact}")
     print(f"JSON packets saved to: {artifacts['research_packets_json_path']}")
     print(

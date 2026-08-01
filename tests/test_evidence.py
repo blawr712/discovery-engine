@@ -1,5 +1,6 @@
 import hashlib
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
@@ -63,6 +64,10 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(len(fetcher.calls), 3)
         self.assertEqual(first[0].content_hash, second[0].content_hash)
         self.assertIn("@", fetcher.calls[0][1]["User-Agent"])
+        self.assertEqual(cache.stats.misses, 3)
+        self.assertEqual(cache.stats.hits, 2)
+        self.assertEqual(cache.stats.expired, 0)
+        self.assertEqual(cache.stats.read_errors, 0)
 
     def test_collection_isolates_failure_and_attaches_valid_evidence(self):
         document = EvidenceDocument(
@@ -88,6 +93,9 @@ class EvidenceTests(unittest.TestCase):
 
         self.assertEqual(result["document_count"], 1)
         self.assertEqual(result["failure_count"], 1)
+        self.assertEqual(result["cache"], {
+            "expired": 0, "hits": 0, "misses": 0, "read_errors": 0,
+        })
         self.assertTrue(packets[0]["source_policy"]["external_sources_attached"])
         self.assertEqual(len(packets[0]["evidence_documents"]), 1)
 
@@ -109,6 +117,30 @@ class EvidenceTests(unittest.TestCase):
     def test_sec_user_agent_must_include_contact(self):
         with self.assertRaises(ValueError):
             SecEdgarProvider("Discovery Engine")
+
+    def test_cache_counts_expiry_and_corrupt_entry_recovery(self):
+        now = datetime(2026, 8, 1, tzinfo=timezone.utc)
+        current = [now]
+        fetcher = FixtureFetcher()
+        with tempfile.TemporaryDirectory() as directory:
+            cache = HttpCache(
+                Path(directory),
+                ttl_hours=1,
+                clock=lambda: current[0],
+                fetcher=fetcher,
+            )
+            url = "https://www.sec.gov/files/company_tickers.json"
+            cache.get(url, {})
+            current[0] = now + timedelta(hours=2)
+            cache.get(url, {})
+            cache_path = next(Path(directory).glob("*.json"))
+            cache_path.write_text("not-json", encoding="utf-8")
+            cache.get(url, {})
+
+        self.assertEqual(cache.stats.misses, 1)
+        self.assertEqual(cache.stats.expired, 1)
+        self.assertEqual(cache.stats.read_errors, 1)
+        self.assertEqual(cache.stats.hits, 0)
 
 
 if __name__ == "__main__":

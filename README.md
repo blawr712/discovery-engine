@@ -109,7 +109,9 @@ paces requests, caches raw responses for seven days, and records publisher,
 URL, dates, source type, priority, and SHA-256 hash. Unsupported companies and
 source failures remain visible per candidate. A reviewed local manifest can
 add approved sources with `--source-manifest PATH`; its domains must first be
-allowlisted in `config/settings.json`. AI synthesis remains disabled.
+allowlisted in `config/settings.json`. Terminal and manifest summaries report
+evidence documents, failures, cache hits, misses, expiry, and read errors. AI
+synthesis remains disabled.
 
 ## Documentation
 
