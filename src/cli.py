@@ -56,11 +56,20 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         metavar="PATH",
         help="attach curated, hashed evidence from a local JSON manifest",
     )
+    parser.add_argument(
+        "--synthesize",
+        action="store_true",
+        help="generate validated cited briefs from attached evidence",
+    )
     args = parser.parse_args(arguments)
     if args.top is not None and args.research_run is None:
         parser.error("--top requires --research-run")
     if (args.collect_sources or args.source_manifest) and args.research_run is None:
         parser.error("source options require --research-run")
+    if args.synthesize and args.research_run is None:
+        parser.error("--synthesize requires --research-run")
+    if args.synthesize and not (args.collect_sources or args.source_manifest):
+        parser.error("--synthesize requires --collect-sources or --source-manifest")
     return args
 
 

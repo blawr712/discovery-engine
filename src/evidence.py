@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
+from html.parser import HTMLParser
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,7 @@ from src.config import (
     EVIDENCE_CACHE_DIR,
     EVIDENCE_MAX_AGE_DAYS,
     EVIDENCE_MAX_DOCUMENTS,
+    EVIDENCE_MAX_EXCERPT_CHARS,
     EVIDENCE_SEC_FORMS,
     EVIDENCE_TTL_HOURS,
 )
@@ -58,6 +60,7 @@ class EvidenceDocument:
     source_type: str
     content_hash: str
     quality_priority: int
+    excerpt: str = ""
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -173,6 +176,7 @@ class SecEdgarProvider:
                 source_type="regulatory_filing",
                 content_hash=hashlib.sha256(raw).hexdigest(),
                 quality_priority=QUALITY_PRIORITY["regulatory_filing"],
+                excerpt=_html_excerpt(raw, EVIDENCE_MAX_EXCERPT_CHARS),
             ))
             if len(documents) >= self.max_documents:
                 break
@@ -219,6 +223,7 @@ class ManifestEvidenceProvider:
                 source_type=source_type,
                 content_hash=content_hash,
                 quality_priority=QUALITY_PRIORITY[source_type],
+                excerpt=str(row.get("excerpt") or "")[:EVIDENCE_MAX_EXCERPT_CHARS],
             ))
         return documents
 
@@ -351,6 +356,32 @@ def _fetch(url: str, headers: dict[str, str]) -> bytes:
         content = response.read()
     time.sleep(0.12)
     return content
+
+
+def _html_excerpt(raw: bytes, maximum: int) -> str:
+    parser = _TextExtractor()
+    parser.feed(raw.decode("utf-8", errors="replace"))
+    text = " ".join(" ".join(parser.parts).split())
+    return text[:maximum]
+
+
+class _TextExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+        self.suppressed = 0
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag in {"script", "style", "noscript"}:
+            self.suppressed += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"script", "style", "noscript"} and self.suppressed:
+            self.suppressed -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self.suppressed:
+            self.parts.append(data)
 
 
 def _parse_time(value: str) -> datetime:

@@ -58,8 +58,15 @@
             "cache_ttl_hours": 168,
             "maximum_documents_per_company": 5,
             "maximum_age_days": 730,
+            "maximum_excerpt_characters": 12000,
             "allowed_domains": ["sec.gov"],
             "sec_forms": ["10-K", "10-Q", "8-K", "20-F", "40-F", "6-K"]
+        },
+        "synthesis": {
+            "provider": "openai",
+            "model": "gpt-5.6-sol",
+            "maximum_output_tokens": 4000,
+            "api_base_url": "https://api.openai.com/v1"
         }
     }
 }

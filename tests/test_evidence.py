@@ -59,6 +59,7 @@ class EvidenceTests(unittest.TestCase):
 
         self.assertEqual(len(first), 1)
         self.assertEqual(first[0].source_type, "regulatory_filing")
+        self.assertEqual(first[0].excerpt, "primary filing")
         self.assertIn("/Archives/edgar/data/1234/", first[0].url)
         self.assertEqual(first[0].content_hash, hashlib.sha256(b"<html>primary filing</html>").hexdigest())
         self.assertEqual(len(fetcher.calls), 3)

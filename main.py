@@ -23,6 +23,7 @@ from src.run_state import (
     record_research_packets,
 )
 from src.research import (
+    ResearchCache,
     ResearchRunner,
     build_research_packets,
     export_research_packets,
@@ -35,6 +36,7 @@ from src.evidence import (
     collect_evidence,
     export_evidence,
 )
+from src.openai_research import OpenAIResearchProvider
 from src.cli import parse_args, select_universe
 from src.config import (
     BENCHMARKS,
@@ -63,6 +65,11 @@ from src.config import (
     RATE_LIMIT_COOLDOWN_SECONDS,
     MAX_RATE_LIMIT_COOLDOWN_EVENTS,
     RESEARCH_DEFAULT_TOP,
+    RESEARCH_AI_ENABLED,
+    RESEARCH_CACHE_DIR,
+    RESEARCH_PROMPT_VERSION,
+    SYNTHESIS_MODEL,
+    SYNTHESIS_PROVIDER,
 )
 
 
@@ -87,6 +94,7 @@ def main(arguments=None):
             args.top or RESEARCH_DEFAULT_TOP,
             collect_sources=args.collect_sources,
             source_manifest=args.source_manifest,
+            synthesize=args.synthesize,
         )
         return
 
@@ -289,6 +297,7 @@ def research_saved_run(
     top_n: int,
     collect_sources: bool = False,
     source_manifest: str | None = None,
+    synthesize: bool = False,
 ) -> None:
     """Build deterministic research packets from a completed local run."""
     try:
@@ -330,7 +339,35 @@ def research_saved_run(
         }
     else:
         metadata["evidence"] = {"collection_enabled": False}
-    outputs = ResearchRunner(provider=None).run(packets)
+    synthesis_provider = None
+    if synthesize:
+        if not RESEARCH_AI_ENABLED:
+            raise SystemExit(
+                "AI synthesis is disabled in config/settings.json. Set "
+                "research.ai_synthesis_enabled to true before using --synthesize."
+            )
+        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            raise SystemExit("--synthesize requires OPENAI_API_KEY.")
+        if SYNTHESIS_PROVIDER != "openai":
+            raise SystemExit(f"Unsupported synthesis provider: {SYNTHESIS_PROVIDER}")
+        synthesis_provider = OpenAIResearchProvider(api_key)
+        metadata["synthesis"] = {
+            "enabled": True,
+            "provider": synthesis_provider.name,
+            "model": synthesis_provider.model,
+            "prompt_version": RESEARCH_PROMPT_VERSION,
+        }
+    else:
+        metadata["synthesis"] = {"enabled": False}
+    outputs = ResearchRunner(
+        provider=synthesis_provider,
+        cache=ResearchCache(
+            RESEARCH_CACHE_DIR,
+            RESEARCH_PROMPT_VERSION,
+            f"openai:{SYNTHESIS_MODEL}" if synthesis_provider else "packet-only",
+        ),
+    ).run(packets)
     artifacts = export_research_packets(
         packets,
         outputs,
@@ -349,7 +386,17 @@ def research_saved_run(
     print(f"Offline research packets complete for run: {run_id}")
     print(f"Selected scenario: {metadata['selected_scenario']}")
     print(f"Research packets: {len(packets)}")
-    print("AI synthesis: disabled (packet-only mode)")
+    if synthesis_provider:
+        statuses = artifacts["synthesis_statuses"]
+        print(f"AI synthesis: enabled ({synthesis_provider.model})")
+        print(f"Synthesis complete: {statuses.get('complete', 0)}")
+        print(f"Synthesis skipped (no evidence): {statuses.get('skipped_no_evidence', 0)}")
+        print(f"Synthesis errors: {statuses.get('error', 0)}")
+        print(f"Synthesis cache hits: {artifacts['synthesis_cache_hits']}")
+        print(f"Validated claims: {artifacts['validated_claim_count']}")
+        print(f"Validated citations: {artifacts['validated_citation_count']}")
+    else:
+        print("AI synthesis: disabled (packet-only mode)")
     if evidence_artifact:
         cache = metadata["evidence"]["cache"]
         print(f"Evidence documents: {metadata['evidence']['document_count']}")
@@ -363,6 +410,10 @@ def research_saved_run(
     print(
         "Markdown packets saved to: "
         f"{artifacts['research_packets_markdown_path']}"
+    )
+    print(
+        "Research briefs saved to: "
+        f"{artifacts['research_briefs_markdown_path']}"
     )
     print(f"Manifest updated: {manifest_path}")
 

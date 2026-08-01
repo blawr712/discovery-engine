@@ -113,6 +113,25 @@ allowlisted in `config/settings.json`. Terminal and manifest summaries report
 evidence documents, failures, cache hits, misses, expiry, and read errors. AI
 synthesis remains disabled.
 
+Validated cited synthesis is an additional opt-in action. First set
+`research.ai_synthesis_enabled` to `true` in `config/settings.json`, then keep
+the API key and SEC contact identity only in the local terminal environment:
+
+```powershell
+$env:OPENAI_API_KEY = "your-api-key"
+$env:SEC_USER_AGENT = "Discovery Engine your-email@example.com"
+python main.py --research-run RUN_ID --top 5 --collect-sources --synthesize
+```
+
+The OpenAI Responses API receives bounded evidence excerpts and returns a
+strict JSON-schema research brief. Sourced facts must cite an attached URL and
+SHA-256 hash; interpretations are labeled separately. Unsupported citations,
+uncited sourced facts, refusals, and malformed outputs fail only that company.
+Validated responses are cached by packet, evidence hashes, prompt version,
+provider, and model. The API request disables response storage. Readable briefs
+and structured validation metrics are exported without changing any score or
+rank. Candidates without evidence are skipped and do not trigger an AI call.
+
 ## Documentation
 
 - PROJECT_CONTEXT.md

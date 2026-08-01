@@ -94,11 +94,17 @@ RESEARCH_CACHE_DIR = BASE_DIR / RESEARCH_CONFIG.get(
     "cache_directory",
     "data/cache/research",
 )
+SYNTHESIS_CONFIG = RESEARCH_CONFIG.get("synthesis", {})
+SYNTHESIS_PROVIDER = str(SYNTHESIS_CONFIG.get("provider", "openai"))
+SYNTHESIS_MODEL = str(SYNTHESIS_CONFIG.get("model", "gpt-5.6-sol"))
+SYNTHESIS_MAX_OUTPUT_TOKENS = int(SYNTHESIS_CONFIG.get("maximum_output_tokens", 4000))
+SYNTHESIS_API_BASE_URL = str(SYNTHESIS_CONFIG.get("api_base_url", "https://api.openai.com/v1"))
 EVIDENCE_CONFIG = RESEARCH_CONFIG.get("evidence", {})
 EVIDENCE_CACHE_DIR = BASE_DIR / EVIDENCE_CONFIG.get("cache_directory", "data/cache/evidence")
 EVIDENCE_TTL_HOURS = float(EVIDENCE_CONFIG.get("cache_ttl_hours", 168))
 EVIDENCE_MAX_DOCUMENTS = int(EVIDENCE_CONFIG.get("maximum_documents_per_company", 5))
 EVIDENCE_MAX_AGE_DAYS = int(EVIDENCE_CONFIG.get("maximum_age_days", 730))
+EVIDENCE_MAX_EXCERPT_CHARS = int(EVIDENCE_CONFIG.get("maximum_excerpt_characters", 12000))
 EVIDENCE_ALLOWED_DOMAINS = tuple(EVIDENCE_CONFIG.get("allowed_domains", ["sec.gov"]))
 EVIDENCE_SEC_FORMS = tuple(EVIDENCE_CONFIG.get("sec_forms", ["10-K", "10-Q", "8-K", "20-F", "40-F", "6-K"]))
 

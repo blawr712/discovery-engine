@@ -26,28 +26,45 @@ def factor(name, points, maximum, quality="fresh"):
     })
 
 
+def synthesis(citations=None):
+    citations = citations or []
+    return {
+        "business_overview": [{
+            "text": "The company operates a software business.",
+            "classification": "interpretation" if not citations else "sourced_fact",
+            "citations": citations,
+        }],
+        "growth_drivers": [],
+        "risks": [],
+        "recent_developments": [],
+        "unanswered_questions": ["Can margins expand?"],
+    }
+
+
 class CountingProvider:
     def __init__(self):
         self.calls = 0
 
     def generate(self, packet, prompt):
         self.calls += 1
-        return {
-            "business_overview": packet["company_name"],
-            "citations": [],
-        }
+        return synthesis()
 
 
 class FailingProvider:
     def generate(self, packet, prompt):
         if packet["ticker"] == "BAD":
             raise RuntimeError("provider failure")
-        return {"business_overview": "ok", "citations": []}
+        return synthesis()
 
 
 class UnverifiedCitationProvider:
     def generate(self, packet, prompt):
-        return {"citations": [{"url": "https://example.com", "content_hash": "x" * 64}]}
+        return synthesis([{"url": "https://example.com", "content_hash": "x" * 64}])
+
+
+class EvidenceRequiredProvider(CountingProvider):
+    requires_evidence = True
+    cache_identity = "fixture:model-1"
 
 
 class ResearchTests(unittest.TestCase):
@@ -202,10 +219,47 @@ class ResearchTests(unittest.TestCase):
             markdown = Path(
                 artifacts["research_packets_markdown_path"]
             ).read_text(encoding="utf-8")
+            briefs = Path(
+                artifacts["research_briefs_markdown_path"]
+            ).read_text(encoding="utf-8")
 
         self.assertEqual(payload["official_scores_and_ranks_unchanged"], True)
         self.assertEqual(artifacts["synthesis_statuses"], {"packet_only": 2})
         self.assertIn("Research questions", markdown)
+        self.assertEqual(markdown, briefs)
+        self.assertEqual(artifacts["validated_claim_count"], 0)
+
+    def test_sourced_claim_requires_attached_citation(self):
+        packets, _ = build_research_packets(self.results, 1, calibration=self.calibration)
+
+        with self.assertRaisesRegex(ValueError, "requires a citation"):
+            from src.research import validate_synthesis
+            invalid = synthesis()
+            invalid["business_overview"][0]["classification"] = "sourced_fact"
+            validate_synthesis(packets[0], invalid)
+
+    def test_evidence_required_provider_skips_packet_without_sources(self):
+        packets, _ = build_research_packets(self.results, 1, calibration=self.calibration)
+        provider = EvidenceRequiredProvider()
+        result = ResearchRunner(provider).run(packets)
+
+        self.assertEqual(result[0]["status"], "skipped_no_evidence")
+        self.assertEqual(provider.calls, 0)
+
+    def test_valid_sourced_claim_reports_validation_metrics(self):
+        packets, _ = build_research_packets(self.results, 1, calibration=self.calibration)
+        citation = {
+            "url": "https://www.sec.gov/filing",
+            "content_hash": "a" * 64,
+        }
+        packets[0]["evidence_documents"] = [citation]
+
+        from src.research import validate_synthesis
+        validation = validate_synthesis(packets[0], synthesis([citation]))
+
+        self.assertEqual(validation["sourced_claim_count"], 1)
+        self.assertEqual(validation["citation_count"], 1)
+        self.assertEqual(validation["status"], "pass")
 
 
 if __name__ == "__main__":

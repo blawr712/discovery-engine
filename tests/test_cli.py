@@ -107,6 +107,17 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--collect-sources"])
 
+    def test_synthesis_requires_research_run_and_evidence_source(self):
+        args = parse_args([
+            "--research-run", "run-123", "--collect-sources", "--synthesize",
+        ])
+
+        self.assertTrue(args.synthesize)
+        with self.assertRaises(SystemExit):
+            parse_args(["--research-run", "run-123", "--synthesize"])
+        with self.assertRaises(SystemExit):
+            parse_args(["--synthesize", "--collect-sources"])
+
 
 if __name__ == "__main__":
     unittest.main()

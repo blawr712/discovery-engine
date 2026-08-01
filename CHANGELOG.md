@@ -54,6 +54,12 @@
 - Added citation validation against attached evidence and explicit claim classes
 - Added evidence provenance to research packets and saved run manifests
 - Added evidence cache hit, miss, expiry, and read-error run statistics
+- Added opt-in OpenAI Responses API research synthesis with strict JSON schema
+- Added bounded filing excerpts and prompt-injection-resistant source handling
+- Required evidence-bound citations for every sourced synthesis claim
+- Added interpretation labels and rejection of ranking or recommendation fields
+- Added model-aware synthesis caching, failure isolation, and no-evidence skips
+- Added validated claim/citation metrics and readable research brief exports
 
 ## v0.2.0 Performance — 2026-07-25
 
