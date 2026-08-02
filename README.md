@@ -140,7 +140,14 @@ python main.py --audit-research RUN_ID
 
 This exports automated evidence, synthesis, citation, section-completeness,
 error, sourced-evidence-use, and ranking-integrity gates plus a claim-level
-`research_human_review` CSV. Automated success produces only
+triage artifact and a risk-based `research_human_review` CSV. Material
+interpretations always require review; other interpretations plus sourced
+risk, numeric, material, and citation-complexity claims receive elevated
+sampling priority. Lower-risk claims are selected by a deterministic configured
+sample, with at least one claim retained from every populated candidate
+section. Stable claim IDs bind the saved audit to
+the exact review queue, so removing or duplicating sampled rows blocks
+finalization. Automated success produces only
 `pending_human_review`. Reviewers must mark every row's `accuracy_review` and
 `citation_support_review` as `pass` or `fail`, and `human_review_status` as
 `approved` or `rejected`. After saving the CSV, finalize it offline:

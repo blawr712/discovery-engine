@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import csv
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
+import re
 
 from src.config import OUTPUT_DIR, RESEARCH_REVIEW_CONFIG
 from src.research import validate_synthesis
@@ -14,6 +16,12 @@ from src.research import validate_synthesis
 SECTIONS = (
     "business_overview", "growth_drivers", "risks", "recent_developments",
 )
+RISK_ORDER = {"high": 0, "medium": 1, "low": 2}
+MATERIAL_TERMS = {
+    "adverse", "bankruptcy", "clinical", "covenant", "debt", "dilution",
+    "financing", "fraud", "guidance", "investigation", "lawsuit", "loss",
+    "merger", "regulatory", "revenue", "trial",
+}
 
 
 def audit_research_payload(payload: dict, gates: dict | None = None) -> dict:
@@ -136,10 +144,22 @@ def export_research_audit(
     audit_path = output_directory / f"research_audit_{run_id}.json"
     review_path = output_directory / f"research_human_review_{run_id}.csv"
     candidate_path = output_directory / f"research_candidate_audit_{run_id}.csv"
+    all_rows = _review_rows(payload, audit)
+    rows, policy = _select_review_rows(all_rows, gates or RESEARCH_REVIEW_CONFIG)
+    audit["review_sampling"] = {
+        **policy,
+        "total_claim_count": len(all_rows),
+        "selected_claim_count": len(rows),
+        "coverage_percent": _percent(len(rows), len(all_rows)),
+        "risk_counts": _counts(all_rows, "review_risk_level"),
+        "selected_risk_counts": _counts(rows, "review_risk_level"),
+        "selection_counts": _counts(rows, "review_selection_basis"),
+        "selected_claim_ids": [row["claim_id"] for row in rows],
+    }
     audit_path.write_text(json.dumps(audit, indent=2, sort_keys=True), encoding="utf-8")
-    rows = _review_rows(payload, audit)
     fields = [
-        "ticker", "country", "selected_rank", "section", "classification",
+        "claim_id", "ticker", "country", "selected_rank", "section", "classification",
+        "review_risk_level", "review_risk_reasons", "review_selection_basis",
         "claim", "citation_urls", "citation_hashes", "automated_validation",
         "accuracy_review", "citation_support_review", "materiality_notes",
         "human_review_status",
@@ -149,16 +169,35 @@ def export_research_audit(
         writer.writeheader()
         writer.writerows(rows)
     _write_candidate_audit(candidate_path, audit["companies"])
+    triage_path = output_directory / f"research_claim_triage_{run_id}.csv"
+    with triage_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=[*fields[:-4], "selected_for_human_review"],
+        )
+        writer.writeheader()
+        selected_ids = {row["claim_id"] for row in rows}
+        selection_basis = {
+            row["claim_id"]: row["review_selection_basis"] for row in rows
+        }
+        for row in all_rows:
+            writer.writerow({
+                **{field: row.get(field) for field in fields[:-4]},
+                "review_selection_basis": selection_basis.get(row["claim_id"], "not_selected"),
+                "selected_for_human_review": row["claim_id"] in selected_ids,
+            })
     return {
         "research_audit_json_path": str(audit_path),
         "research_human_review_csv_path": str(review_path),
         "research_candidate_audit_csv_path": str(candidate_path),
+        "research_claim_triage_csv_path": str(triage_path),
         "automated_status": audit["automated_status"],
         "release_status": audit["release_status"],
         "metrics": audit["metrics"],
         "failed_gates": audit["failed_gates"],
         "not_evaluated_gates": audit["not_evaluated_gates"],
         "review_row_count": len(rows),
+        "review_sampling": audit["review_sampling"],
     }
 
 
@@ -181,6 +220,11 @@ def finalize_research_review(
     required = {"accuracy_review", "citation_support_review", "human_review_status"}
     if not required.issubset(rows[0]):
         raise ValueError("Human review queue is missing required decision columns.")
+    expected_ids = set((audit.get("review_sampling") or {}).get("selected_claim_ids", []))
+    if expected_ids:
+        actual_ids = [str(row.get("claim_id", "")) for row in rows]
+        if len(actual_ids) != len(set(actual_ids)) or set(actual_ids) != expected_ids:
+            raise ValueError("Human review queue does not match the audited claim sample.")
     pending = []
     rejected = []
     for index, row in enumerate(rows, start=2):
@@ -214,6 +258,7 @@ def finalize_research_review(
         "rejected_csv_rows": rejected,
         "candidate_status_counts": candidate_status_counts,
         "candidate_decisions": candidate_decisions,
+        "review_sampling": audit.get("review_sampling"),
         "scores_and_ranks_unchanged": audit.get("scores_and_ranks_unchanged") is True,
         "source_audit_path": str(Path(audit_path)),
         "source_review_path": str(Path(review_path)),
@@ -266,7 +311,11 @@ def _candidate_decisions(companies: list[dict], rows: list[dict]) -> list[dict]:
             "evidence_document_count": company.get("evidence_document_count", 0),
             "synthesis_status": company.get("synthesis_status"),
             "automated_validation": company.get("validation_status"),
-            "claim_count": len(claim_rows),
+            "claim_count": company.get("claim_count", 0),
+            "review_claim_count": len(claim_rows),
+            "unreviewed_claim_count": max(
+                int(company.get("claim_count", 0)) - len(claim_rows), 0
+            ),
             "approved_claim_count": approved,
             "rejected_claim_count": rejected,
             "pending_claim_count": pending,
@@ -292,6 +341,7 @@ def _write_release_report(path: Path, decisions: list[dict]) -> None:
     fields = [
         "ticker", "country", "selected_rank", "evidence_document_count",
         "synthesis_status", "automated_validation", "claim_count",
+        "review_claim_count", "unreviewed_claim_count",
         "approved_claim_count", "rejected_claim_count", "pending_claim_count",
         "release_status",
     ]
@@ -324,11 +374,15 @@ def _review_rows(payload: dict, audit: dict) -> list[dict]:
             for claim in synthesis.get(section, []):
                 citations = claim.get("citations", [])
                 rows.append({
+                    "claim_id": _claim_id(ticker, section, claim),
                     "ticker": ticker,
                     "country": packet.get("country"),
                     "selected_rank": packet.get("selected_rank"),
                     "section": section,
                     "classification": claim.get("classification"),
+                    "review_risk_level": _risk_level(section, claim)[0],
+                    "review_risk_reasons": json.dumps(_risk_level(section, claim)[1]),
+                    "review_selection_basis": "",
                     "claim": claim.get("text"),
                     "citation_urls": json.dumps([row.get("url") for row in citations]),
                     "citation_hashes": json.dumps([row.get("content_hash") for row in citations]),
@@ -339,6 +393,90 @@ def _review_rows(payload: dict, audit: dict) -> list[dict]:
                     "human_review_status": "pending",
                 })
     return rows
+
+
+def _risk_level(section: str, claim: dict) -> tuple[str, list[str]]:
+    text = str(claim.get("text", ""))
+    lowered = text.lower()
+    reasons = []
+    if claim.get("classification") == "interpretation":
+        reasons.append("interpretation")
+    if section == "risks":
+        reasons.append("risk_section")
+    if re.search(r"(?:\d|%|\$)", text):
+        reasons.append("numeric_claim")
+    matched_terms = sorted(term for term in MATERIAL_TERMS if term in lowered)
+    if matched_terms:
+        reasons.append("material_terms:" + ",".join(matched_terms))
+    if len(claim.get("citations", [])) > 1:
+        reasons.append("multiple_citations")
+    material_interpretation = "interpretation" in reasons and (
+        "risk_section" in reasons
+        or any(reason.startswith("material_terms:") for reason in reasons)
+    )
+    if material_interpretation:
+        return "high", reasons
+    if reasons:
+        return "medium", reasons
+    return "low", ["straightforward_sourced_fact"]
+
+
+def _claim_id(ticker: str, section: str, claim: dict) -> str:
+    payload = json.dumps(
+        {"ticker": ticker, "section": section, "claim": claim},
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()[:16]
+
+
+def _select_review_rows(rows: list[dict], gates: dict) -> tuple[list[dict], dict]:
+    policy = dict(gates.get("review_sampling") or {})
+    enabled = bool(policy.get("enabled", False))
+    medium_percent = float(policy.get("medium_risk_sample_percent", 50))
+    low_percent = float(policy.get("low_risk_sample_percent", 25))
+    seed = str(policy.get("seed") or "v0.3-review-1")
+    for value in (medium_percent, low_percent):
+        if not 0 <= value <= 100:
+            raise ValueError("Research review sample percentages must be between 0 and 100.")
+    selected = {}
+    for row in rows:
+        if not enabled or row["review_risk_level"] == "high":
+            selected[row["claim_id"]] = "full_review" if not enabled else "mandatory_high_risk"
+    if enabled and policy.get("minimum_one_claim_per_section", True):
+        groups = sorted({(row["ticker"], row["section"]) for row in rows})
+        for ticker, section in groups:
+            candidates = [
+                row for row in rows
+                if row["ticker"] == ticker and row["section"] == section
+            ]
+            candidates.sort(key=lambda row: (RISK_ORDER[row["review_risk_level"]], row["claim_id"]))
+            selected.setdefault(candidates[0]["claim_id"], "section_coverage")
+    if enabled:
+        for row in rows:
+            if row["claim_id"] in selected:
+                continue
+            percent = medium_percent if row["review_risk_level"] == "medium" else low_percent
+            if _sample_value(seed, row["claim_id"]) < percent:
+                selected[row["claim_id"]] = "reproducible_sample"
+    result = []
+    for row in rows:
+        if row["claim_id"] in selected:
+            result.append({**row, "review_selection_basis": selected[row["claim_id"]]})
+    return result, {
+        "enabled": enabled,
+        "medium_risk_sample_percent": medium_percent,
+        "low_risk_sample_percent": low_percent,
+        "minimum_one_claim_per_section": bool(
+            policy.get("minimum_one_claim_per_section", True)
+        ),
+        "seed": seed,
+    }
+
+
+def _sample_value(seed: str, claim_id: str) -> float:
+    digest = hashlib.sha256(f"{seed}:{claim_id}".encode("utf-8")).hexdigest()
+    return int(digest[:8], 16) / 0xFFFFFFFF * 100
 
 
 def _gate_results(

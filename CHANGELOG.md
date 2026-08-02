@@ -6,6 +6,9 @@
 - Added Responses API token-usage reporting for uncached research synthesis
 - Added candidate-level automated audit and finalized release CSV artifacts
 - Added explicit approved, rejected, incomplete, and not-ready batch outcomes
+- Added deterministic claim-risk triage and configurable review sampling
+- Added mandatory high-risk and per-section review coverage with stable claim IDs
+- Added tamper detection between audited samples and finalized review queues
 
 - Added the v0.3 specification and staged acceptance criteria
 - Added configuration-driven structural asset classification

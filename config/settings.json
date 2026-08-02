@@ -74,7 +74,14 @@
             "minimum_citation_coverage_percent": 100,
             "minimum_section_coverage_percent": 75,
             "minimum_sourced_claims_per_synthesis": 1,
-            "maximum_synthesis_errors": 0
+            "maximum_synthesis_errors": 0,
+            "review_sampling": {
+                "enabled": true,
+                "medium_risk_sample_percent": 10,
+                "low_risk_sample_percent": 10,
+                "minimum_one_claim_per_section": true,
+                "seed": "v0.3-review-1"
+            }
         }
     }
 }

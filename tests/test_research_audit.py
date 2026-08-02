@@ -135,6 +135,8 @@ class ResearchAuditTests(unittest.TestCase):
         self.assertEqual(decision["approved_row_count"], 4)
         self.assertEqual(decision["candidate_status_counts"], {"approved": 1, "not_ready": 1})
         self.assertEqual(releases[0]["release_status"], "approved")
+        self.assertEqual(releases[0]["review_claim_count"], "4")
+        self.assertEqual(releases[0]["unreviewed_claim_count"], "0")
         self.assertEqual(releases[1]["release_status"], "not_ready")
 
     def test_incomplete_review_cannot_be_approved(self):
@@ -152,6 +154,75 @@ class ResearchAuditTests(unittest.TestCase):
 
         self.assertEqual(decision["human_review_decision"], "incomplete")
         self.assertTrue(decision["pending_csv_rows"])
+
+    def test_risk_sampling_is_reproducible_and_preserves_section_coverage(self):
+        payload = payload_with_synthesis()
+        citation = {"url": "https://www.sec.gov/filing", "content_hash": "a" * 64}
+        extra = {
+            "text": "Another straightforward supported fact.",
+            "classification": "sourced_fact",
+            "citations": [citation],
+        }
+        for section in ("business_overview", "growth_drivers", "risks", "recent_developments"):
+            payload["outputs"][0]["synthesis"][section].append(extra)
+        payload["outputs"][0]["synthesis"]["business_overview"][1] = {
+            **extra,
+            "text": "The evidence suggests a cautious revenue interpretation.",
+            "classification": "interpretation",
+        }
+        gates = {
+            **self.gates,
+            "review_sampling": {
+                "enabled": True,
+                "medium_risk_sample_percent": 0,
+                "low_risk_sample_percent": 0,
+                "minimum_one_claim_per_section": True,
+                "seed": "stable-test",
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            artifacts = export_research_audit(payload, "run-1", Path(directory), gates)
+            with open(artifacts["research_human_review_csv_path"], encoding="utf-8", newline="") as file:
+                selected = list(csv.DictReader(file))
+            with open(artifacts["research_claim_triage_csv_path"], encoding="utf-8", newline="") as file:
+                triage = list(csv.DictReader(file))
+
+        self.assertEqual(len(triage), 8)
+        self.assertEqual(len(selected), 4)
+        self.assertEqual(
+            sum(row["review_selection_basis"] == "not_selected" for row in triage),
+            4,
+        )
+        self.assertEqual({row["section"] for row in selected}, {
+            "business_overview", "growth_drivers", "risks", "recent_developments",
+        })
+        interpretation = next(row for row in selected if row["classification"] == "interpretation")
+        self.assertEqual(interpretation["review_risk_level"], "high")
+        self.assertEqual(interpretation["review_selection_basis"], "mandatory_high_risk")
+        self.assertEqual(artifacts["review_sampling"]["selected_claim_count"], 4)
+
+    def test_finalization_rejects_a_tampered_sample_queue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifacts = export_research_audit(
+                payload_with_synthesis(), "run-1", root, self.gates,
+            )
+            review_path = Path(artifacts["research_human_review_csv_path"])
+            with review_path.open(encoding="utf-8", newline="") as file:
+                rows = list(csv.DictReader(file))
+                fields = rows[0].keys()
+            with review_path.open("w", encoding="utf-8", newline="") as file:
+                writer = csv.DictWriter(file, fieldnames=fields)
+                writer.writeheader()
+                writer.writerows(rows[:-1])
+
+            with self.assertRaisesRegex(ValueError, "does not match"):
+                finalize_research_review(
+                    Path(artifacts["research_audit_json_path"]),
+                    review_path,
+                    "run-1",
+                    root,
+                )
 
 
 if __name__ == "__main__":

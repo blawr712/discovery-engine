@@ -462,6 +462,12 @@ def audit_saved_research(run_id: str) -> None:
     print(f"Citation coverage: {metrics['citation_coverage_percent']}%")
     print(f"Section coverage: {metrics['section_coverage_percent']}%")
     print(f"Human review rows: {artifacts['review_row_count']}")
+    sampling = artifacts["review_sampling"]
+    print(
+        "Human review sampling: "
+        f"{sampling['selected_claim_count']}/{sampling['total_claim_count']} "
+        f"({sampling['coverage_percent']}%)"
+    )
     if artifacts["failed_gates"]:
         print(f"Failed gates: {', '.join(artifacts['failed_gates'])}")
     if artifacts["not_evaluated_gates"]:
@@ -469,6 +475,7 @@ def audit_saved_research(run_id: str) -> None:
     print(f"Audit saved to: {artifacts['research_audit_json_path']}")
     print(f"Human review queue saved to: {artifacts['research_human_review_csv_path']}")
     print(f"Candidate audit saved to: {artifacts['research_candidate_audit_csv_path']}")
+    print(f"Claim triage saved to: {artifacts['research_claim_triage_csv_path']}")
     print(f"Manifest updated: {manifest_path}")
 
 
