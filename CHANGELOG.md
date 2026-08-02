@@ -64,6 +64,10 @@
 - Added country evidence, synthesis, citation, section, error, and integrity metrics
 - Added claim-level human-review queues with explicit accuracy/support decisions
 - Added guarded research-review finalization and manifest acceptance provenance
+- Increased synthesis output headroom and constrained briefs for concise completion
+- Added explicit diagnostics for Responses API incomplete-output conditions
+- Required evidence citations for interpretations as well as sourced facts
+- Changed citation coverage to measure all research claims
 
 ## v0.2.0 Performance — 2026-07-25
 

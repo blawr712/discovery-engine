@@ -254,10 +254,13 @@ def build_research_prompt(packet: dict, prompt_version: str) -> str:
         "Do not change, recommend, or recalculate any score or rank. "
         "Separate sourced facts from interpretation. Every sourced_fact must "
         "include citations using an attached evidence URL and matching "
-        "content_hash; do not cite "
+        "content_hash. Every claim, including every interpretation, must have "
+        "at least one citation supporting its factual premises; do not cite "
         "anything else. Interpretations must be labeled and cautious. Return "
         "business_overview, growth_drivers, risks, recent_developments, and "
-        "unanswered_questions in the required schema. Packet: "
+        "unanswered_questions in the required schema. Be concise: include no "
+        "more than 3 claims per section, keep each claim under 350 characters, "
+        "and include no more than 5 unanswered questions. Packet: "
         + json.dumps(packet, sort_keys=True, separators=(",", ":"))
     )
 
@@ -274,6 +277,7 @@ def validate_synthesis(packet: dict, response: dict) -> dict:
         "recent_developments",
     )
     claim_count = 0
+    cited_claim_count = 0
     sourced_count = 0
     citation_count = 0
     for section in sections:
@@ -290,10 +294,11 @@ def validate_synthesis(packet: dict, response: dict) -> dict:
             citations = claim.get("citations")
             if not isinstance(citations, list):
                 raise ValueError("Research citations must be a list.")
+            if not citations:
+                raise ValueError("Every research claim requires a citation.")
+            cited_claim_count += 1
             if classification == "sourced_fact":
                 sourced_count += 1
-                if not citations:
-                    raise ValueError("Every sourced fact requires a citation.")
             for citation in citations:
                 if not isinstance(citation, dict):
                     raise ValueError("Each research citation must be an object.")
@@ -312,8 +317,11 @@ def validate_synthesis(packet: dict, response: dict) -> dict:
     return {
         "claim_count": claim_count,
         "sourced_claim_count": sourced_count,
+        "cited_claim_count": cited_claim_count,
         "citation_count": citation_count,
-        "citation_coverage": 1.0 if sourced_count == 0 else 1.0,
+        "citation_coverage": (
+            cited_claim_count / claim_count if claim_count else 1.0
+        ),
         "status": "pass",
     }
 

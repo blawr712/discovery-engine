@@ -27,13 +27,15 @@ def factor(name, points, maximum, quality="fresh"):
 
 
 def synthesis(citations=None):
-    citations = citations or []
-    return {
-        "business_overview": [{
+    claims = []
+    if citations is not None:
+        claims = [{
             "text": "The company operates a software business.",
             "classification": "interpretation" if not citations else "sourced_fact",
             "citations": citations,
-        }],
+        }]
+    return {
+        "business_overview": claims,
         "growth_drivers": [],
         "risks": [],
         "recent_developments": [],
@@ -234,9 +236,16 @@ class ResearchTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "requires a citation"):
             from src.research import validate_synthesis
-            invalid = synthesis()
+            invalid = synthesis([])
             invalid["business_overview"][0]["classification"] = "sourced_fact"
             validate_synthesis(packets[0], invalid)
+
+    def test_interpretation_also_requires_attached_citation(self):
+        packets, _ = build_research_packets(self.results, 1, calibration=self.calibration)
+        from src.research import validate_synthesis
+
+        with self.assertRaisesRegex(ValueError, "Every research claim"):
+            validate_synthesis(packets[0], synthesis([]))
 
     def test_evidence_required_provider_skips_packet_without_sources(self):
         packets, _ = build_research_packets(self.results, 1, calibration=self.calibration)
@@ -258,6 +267,7 @@ class ResearchTests(unittest.TestCase):
         validation = validate_synthesis(packets[0], synthesis([citation]))
 
         self.assertEqual(validation["sourced_claim_count"], 1)
+        self.assertEqual(validation["cited_claim_count"], 1)
         self.assertEqual(validation["citation_count"], 1)
         self.assertEqual(validation["status"], "pass")
 

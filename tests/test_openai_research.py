@@ -40,6 +40,8 @@ class OpenAIResearchProviderTests(unittest.TestCase):
         self.assertFalse(body["store"])
         self.assertTrue(body["text"]["format"]["strict"])
         self.assertEqual(body["text"]["format"]["type"], "json_schema")
+        user_prompt = body["input"][1]["content"]
+        self.assertEqual(user_prompt, "safe prompt")
         self.assertEqual(calls[0][1]["headers"]["Authorization"], "Bearer test-key")
 
     def test_extracts_nested_output_and_surfaces_refusal(self):
@@ -56,6 +58,19 @@ class OpenAIResearchProviderTests(unittest.TestCase):
     def test_requires_api_key(self):
         with self.assertRaises(ValueError):
             OpenAIResearchProvider("")
+
+    def test_reports_incomplete_response_reason_before_json_parsing(self):
+        provider = OpenAIResearchProvider(
+            "test-key",
+            post=lambda *args, **kwargs: FakeResponse({
+                "status": "incomplete",
+                "incomplete_details": {"reason": "max_output_tokens"},
+                "output_text": "{\"unfinished\":",
+            }),
+        )
+
+        with self.assertRaisesRegex(ValueError, "max_output_tokens"):
+            provider.generate({}, "prompt")
 
 
 if __name__ == "__main__":

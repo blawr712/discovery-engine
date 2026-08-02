@@ -59,6 +59,7 @@ def audit_research_payload(payload: dict, gates: dict | None = None) -> dict:
             "validation_error": validation_error,
             "claim_count": validation.get("claim_count", 0) if validation else 0,
             "sourced_claim_count": validation.get("sourced_claim_count", 0) if validation else 0,
+            "cited_claim_count": validation.get("cited_claim_count", 0) if validation else 0,
             "citation_count": validation.get("citation_count", 0) if validation else 0,
             "section_presence": section_presence,
             "human_review_status": "pending" if validation else "not_ready",
@@ -68,6 +69,8 @@ def audit_research_payload(payload: dict, gates: dict | None = None) -> dict:
     evidenced = [row for row in companies if row["evidence_document_count"] > 0]
     completed = [row for row in evidenced if row["validation_status"] == "pass"]
     sourced_claims = sum(row["sourced_claim_count"] for row in completed)
+    cited_claims = sum(row["cited_claim_count"] for row in completed)
+    claims = sum(row["claim_count"] for row in completed)
     citations = sum(row["citation_count"] for row in completed)
     section_slots = len(completed) * len(SECTIONS)
     sections_present = sum(
@@ -83,12 +86,10 @@ def audit_research_payload(payload: dict, gates: dict | None = None) -> dict:
         ),
         "evidence_coverage_percent": _percent(len(evidenced), count),
         "synthesis_completion_percent": _percent(len(completed), len(evidenced)),
-        "citation_coverage_percent": (
-            100.0 if sourced_claims == 0 and completed
-            else _percent(sourced_claims, sourced_claims) if sourced_claims else 0.0
-        ),
+        "citation_coverage_percent": _percent(cited_claims, claims),
         "section_coverage_percent": _percent(sections_present, section_slots),
         "claim_count": sum(row["claim_count"] for row in completed),
+        "cited_claim_count": cited_claims,
         "sourced_claim_count": sourced_claims,
         "citation_count": citations,
         "average_sourced_claims_per_synthesis": round(

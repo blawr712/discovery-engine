@@ -121,6 +121,10 @@ class OpenAIResearchProvider:
 
 
 def _response_text(payload: dict) -> str:
+    if payload.get("status") == "incomplete":
+        details = payload.get("incomplete_details") or {}
+        reason = details.get("reason") or "unknown reason"
+        raise ValueError(f"OpenAI synthesis response was incomplete: {reason}")
     if isinstance(payload.get("output_text"), str):
         return payload["output_text"]
     for output in payload.get("output", []):
