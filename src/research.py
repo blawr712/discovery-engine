@@ -142,6 +142,7 @@ class ResearchRunner:
                     "cached": False,
                     "synthesis": response,
                     "validation": validation,
+                    "usage": getattr(self.provider, "last_usage", None),
                 })
             except Exception as error:
                 outputs.append({
@@ -150,6 +151,7 @@ class ResearchRunner:
                     "cached": False,
                     "error": f"{type(error).__name__}: {error}",
                     "synthesis": None,
+                    "usage": getattr(self.provider, "last_usage", None),
                 })
         return outputs
 
@@ -365,6 +367,13 @@ def export_research_packets(
         row["validation"] for row in outputs
         if row.get("status") == "complete" and isinstance(row.get("validation"), dict)
     ]
+    usage = {
+        key: sum(
+            int((row.get("usage") or {}).get(key) or 0)
+            for row in outputs
+        )
+        for key in ("input_tokens", "output_tokens", "total_tokens")
+    }
     return {
         "research_packets_json_path": str(json_path),
         "research_packets_markdown_path": str(markdown_path),
@@ -374,6 +383,7 @@ def export_research_packets(
         "synthesis_cache_hits": sum(bool(row.get("cached")) for row in outputs),
         "validated_claim_count": sum(row.get("claim_count", 0) for row in validations),
         "validated_citation_count": sum(row.get("citation_count", 0) for row in validations),
+        "synthesis_usage": usage,
     }
 
 

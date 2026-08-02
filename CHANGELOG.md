@@ -2,6 +2,11 @@
 
 ## v0.3 Intelligence (in progress)
 
+- Started Sprint 5 batch release validation
+- Added Responses API token-usage reporting for uncached research synthesis
+- Added candidate-level automated audit and finalized release CSV artifacts
+- Added explicit approved, rejected, incomplete, and not-ready batch outcomes
+
 - Added the v0.3 specification and staged acceptance criteria
 - Added configuration-driven structural asset classification
 - Exclude obvious acquisition vehicles, shell companies, and non-equities

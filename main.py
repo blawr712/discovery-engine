@@ -405,6 +405,10 @@ def research_saved_run(
         print(f"Synthesis cache hits: {artifacts['synthesis_cache_hits']}")
         print(f"Validated claims: {artifacts['validated_claim_count']}")
         print(f"Validated citations: {artifacts['validated_citation_count']}")
+        usage = artifacts["synthesis_usage"]
+        print(f"Synthesis input tokens: {usage['input_tokens']}")
+        print(f"Synthesis output tokens: {usage['output_tokens']}")
+        print(f"Synthesis total tokens: {usage['total_tokens']}")
     else:
         print("AI synthesis: disabled (packet-only mode)")
     if evidence_artifact:
@@ -464,6 +468,7 @@ def audit_saved_research(run_id: str) -> None:
         print(f"Not evaluated: {', '.join(artifacts['not_evaluated_gates'])}")
     print(f"Audit saved to: {artifacts['research_audit_json_path']}")
     print(f"Human review queue saved to: {artifacts['research_human_review_csv_path']}")
+    print(f"Candidate audit saved to: {artifacts['research_candidate_audit_csv_path']}")
     print(f"Manifest updated: {manifest_path}")
 
 
@@ -486,6 +491,7 @@ def finalize_saved_research_review(run_id: str) -> None:
     if decision["rejected_csv_rows"]:
         print(f"Rejected CSV rows: {decision['rejected_csv_rows']}")
     print(f"Acceptance record saved to: {decision['research_acceptance_json_path']}")
+    print(f"Candidate release report saved to: {decision['research_release_csv_path']}")
     print(f"Manifest updated: {manifest_path}")
 
 

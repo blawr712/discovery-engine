@@ -28,7 +28,10 @@ class OpenAIResearchProviderTests(unittest.TestCase):
 
         def post(url, **kwargs):
             calls.append((url, kwargs))
-            return FakeResponse({"output_text": json.dumps(result)})
+            return FakeResponse({
+                "output_text": json.dumps(result),
+                "usage": {"input_tokens": 120, "output_tokens": 30, "total_tokens": 150},
+            })
 
         provider = OpenAIResearchProvider("test-key", model="test-model", post=post)
         response = provider.generate({"ticker": "TEST"}, "safe prompt")
@@ -43,6 +46,7 @@ class OpenAIResearchProviderTests(unittest.TestCase):
         user_prompt = body["input"][1]["content"]
         self.assertEqual(user_prompt, "safe prompt")
         self.assertEqual(calls[0][1]["headers"]["Authorization"], "Bearer test-key")
+        self.assertEqual(provider.last_usage["total_tokens"], 150)
 
     def test_extracts_nested_output_and_surfaces_refusal(self):
         provider = OpenAIResearchProvider(

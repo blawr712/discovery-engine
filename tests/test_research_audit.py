@@ -93,11 +93,15 @@ class ResearchAuditTests(unittest.TestCase):
             audit = json.loads(Path(artifacts["research_audit_json_path"]).read_text(encoding="utf-8"))
             with open(artifacts["research_human_review_csv_path"], encoding="utf-8", newline="") as file:
                 rows = list(csv.DictReader(file))
+            with open(artifacts["research_candidate_audit_csv_path"], encoding="utf-8", newline="") as file:
+                candidates = list(csv.DictReader(file))
 
         self.assertEqual(audit["automated_status"], "pass")
         self.assertEqual(len(rows), 4)
         self.assertEqual(rows[0]["human_review_status"], "pending")
         self.assertEqual(rows[0]["accuracy_review"], "")
+        self.assertEqual(len(candidates), 2)
+        self.assertEqual(candidates[0]["sections_present"], "4")
 
     def test_finalizes_only_completed_human_review(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -124,9 +128,14 @@ class ResearchAuditTests(unittest.TestCase):
                 "run-1",
                 root,
             )
+            with open(decision["research_release_csv_path"], encoding="utf-8", newline="") as file:
+                releases = list(csv.DictReader(file))
 
         self.assertEqual(decision["human_review_decision"], "approved")
         self.assertEqual(decision["approved_row_count"], 4)
+        self.assertEqual(decision["candidate_status_counts"], {"approved": 1, "not_ready": 1})
+        self.assertEqual(releases[0]["release_status"], "approved")
+        self.assertEqual(releases[1]["release_status"], "not_ready")
 
     def test_incomplete_review_cannot_be_approved(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -78,8 +78,10 @@ class OpenAIResearchProvider:
         self.api_base_url = api_base_url.rstrip("/")
         self.post = post or _post_json
         self.cache_identity = f"openai:{model}"
+        self.last_usage: dict | None = None
 
     def generate(self, packet: dict, prompt: str) -> dict:
+        self.last_usage = None
         response = self.post(
             f"{self.api_base_url}/responses",
             headers={
@@ -113,11 +115,24 @@ class OpenAIResearchProvider:
         )
         response.raise_for_status()
         payload = response.json()
+        self.last_usage = _normalized_usage(payload.get("usage"))
         text = _response_text(payload)
         result = jsonlib.loads(text)
         if not isinstance(result, dict):
             raise ValueError("OpenAI synthesis response must be a JSON object.")
         return result
+
+
+def _normalized_usage(value: object) -> dict | None:
+    """Return stable token counters from a Responses API usage payload."""
+    if not isinstance(value, dict):
+        return None
+    usage = {
+        "input_tokens": int(value.get("input_tokens") or 0),
+        "output_tokens": int(value.get("output_tokens") or 0),
+        "total_tokens": int(value.get("total_tokens") or 0),
+    }
+    return usage if any(usage.values()) else None
 
 
 def _response_text(payload: dict) -> str:

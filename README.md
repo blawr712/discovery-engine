@@ -6,7 +6,7 @@ Discovery Engine is a modular Python platform that analyzes the North American e
 
 ## Current Status
 
-**Version:** v0.3 Intelligence — Sprint 2 in progress
+**Version:** v0.3 Intelligence — Sprint 5 in progress
 
 The project now applies an explainable metadata pre-filter, persistent cache,
 bounded concurrent collection, transient retry/backoff, and resumable runs.
@@ -150,8 +150,12 @@ python main.py --finalize-research-review RUN_ID
 ```
 
 Finalization produces a separate approval, rejection, or incomplete decision
-record and stores its provenance in the run manifest. It cannot approve a run
-whose automated gates did not pass.
+record, a candidate-level release report, and manifest provenance. The audit
+also exports a candidate-level CSV so missing evidence, synthesis failures,
+cache use, and validation outcomes remain visible across a batch. Live
+synthesis reports input, output, and total token use; cache hits add no new
+provider tokens. Finalization cannot approve a run whose automated gates did
+not pass.
 
 ## Documentation
 

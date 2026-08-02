@@ -135,6 +135,7 @@ def export_research_audit(
     audit = audit_research_payload(payload, gates=gates)
     audit_path = output_directory / f"research_audit_{run_id}.json"
     review_path = output_directory / f"research_human_review_{run_id}.csv"
+    candidate_path = output_directory / f"research_candidate_audit_{run_id}.csv"
     audit_path.write_text(json.dumps(audit, indent=2, sort_keys=True), encoding="utf-8")
     rows = _review_rows(payload, audit)
     fields = [
@@ -147,9 +148,11 @@ def export_research_audit(
         writer = csv.DictWriter(file, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
+    _write_candidate_audit(candidate_path, audit["companies"])
     return {
         "research_audit_json_path": str(audit_path),
         "research_human_review_csv_path": str(review_path),
+        "research_candidate_audit_csv_path": str(candidate_path),
         "automated_status": audit["automated_status"],
         "release_status": audit["release_status"],
         "metrics": audit["metrics"],
@@ -194,6 +197,11 @@ def finalize_research_review(
         decision = "rejected"
     else:
         decision = "approved"
+    candidate_decisions = _candidate_decisions(audit.get("companies", []), rows)
+    candidate_status_counts = _counts(candidate_decisions, "release_status")
+    output_directory = Path(output_directory or OUTPUT_DIR)
+    release_path = output_directory / f"research_release_{run_id}.csv"
+    _write_release_report(release_path, candidate_decisions)
     record = {
         "run_id": run_id,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -204,14 +212,101 @@ def finalize_research_review(
         "approved_row_count": len(rows) - len(pending) - len(rejected),
         "pending_csv_rows": pending,
         "rejected_csv_rows": rejected,
+        "candidate_status_counts": candidate_status_counts,
+        "candidate_decisions": candidate_decisions,
         "scores_and_ranks_unchanged": audit.get("scores_and_ranks_unchanged") is True,
         "source_audit_path": str(Path(audit_path)),
         "source_review_path": str(Path(review_path)),
+        "research_release_csv_path": str(release_path),
     }
-    output_directory = Path(output_directory or OUTPUT_DIR)
     decision_path = output_directory / f"research_acceptance_{run_id}.json"
     decision_path.write_text(json.dumps(record, indent=2, sort_keys=True), encoding="utf-8")
     return {**record, "research_acceptance_json_path": str(decision_path)}
+
+
+def _write_candidate_audit(path: Path, companies: list[dict]) -> None:
+    fields = [
+        "ticker", "country", "selected_rank", "official_rank",
+        "evidence_document_count", "synthesis_status", "cached",
+        "validation_status", "claim_count", "cited_claim_count",
+        "citation_count", "sections_present", "human_review_status",
+        "validation_error",
+    ]
+    with path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fields)
+        writer.writeheader()
+        for company in companies:
+            writer.writerow({
+                **{field: company.get(field) for field in fields},
+                "sections_present": sum(company.get("section_presence", {}).values()),
+            })
+
+
+def _candidate_decisions(companies: list[dict], rows: list[dict]) -> list[dict]:
+    decisions = []
+    for company in companies:
+        ticker = str(company.get("ticker", ""))
+        claim_rows = [row for row in rows if str(row.get("ticker", "")) == ticker]
+        row_decisions = [_claim_review_decision(row) for row in claim_rows]
+        pending = row_decisions.count("incomplete")
+        rejected = row_decisions.count("rejected")
+        approved = len(claim_rows) - pending - rejected
+        if company.get("validation_status") != "pass" or not claim_rows:
+            status = "not_ready"
+        elif pending:
+            status = "incomplete"
+        elif rejected:
+            status = "rejected"
+        else:
+            status = "approved"
+        decisions.append({
+            "ticker": ticker,
+            "country": company.get("country"),
+            "selected_rank": company.get("selected_rank"),
+            "evidence_document_count": company.get("evidence_document_count", 0),
+            "synthesis_status": company.get("synthesis_status"),
+            "automated_validation": company.get("validation_status"),
+            "claim_count": len(claim_rows),
+            "approved_claim_count": approved,
+            "rejected_claim_count": rejected,
+            "pending_claim_count": pending,
+            "release_status": status,
+        })
+    return decisions
+
+
+def _claim_review_decision(row: dict) -> str:
+    accuracy = str(row.get("accuracy_review", "")).strip().lower()
+    support = str(row.get("citation_support_review", "")).strip().lower()
+    status = str(row.get("human_review_status", "")).strip().lower()
+    if accuracy not in {"pass", "fail"} or support not in {"pass", "fail"}:
+        return "incomplete"
+    if status not in {"approved", "rejected"}:
+        return "incomplete"
+    if "fail" in {accuracy, support} or status == "rejected":
+        return "rejected"
+    return "approved"
+
+
+def _write_release_report(path: Path, decisions: list[dict]) -> None:
+    fields = [
+        "ticker", "country", "selected_rank", "evidence_document_count",
+        "synthesis_status", "automated_validation", "claim_count",
+        "approved_claim_count", "rejected_claim_count", "pending_claim_count",
+        "release_status",
+    ]
+    with path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(decisions)
+
+
+def _counts(rows: list[dict], field: str) -> dict:
+    counts = {}
+    for row in rows:
+        value = str(row.get(field) or "unknown")
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _review_rows(payload: dict, audit: dict) -> list[dict]:

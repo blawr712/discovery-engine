@@ -230,6 +230,7 @@ class ResearchTests(unittest.TestCase):
         self.assertIn("Research questions", markdown)
         self.assertEqual(markdown, briefs)
         self.assertEqual(artifacts["validated_claim_count"], 0)
+        self.assertEqual(artifacts["synthesis_usage"]["total_tokens"], 0)
 
     def test_sourced_claim_requires_attached_citation(self):
         packets, _ = build_research_packets(self.results, 1, calibration=self.calibration)
