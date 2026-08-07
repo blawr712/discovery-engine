@@ -151,6 +151,18 @@ class ResearchTests(unittest.TestCase):
         )
         self.assertEqual(metadata["selected_scenario"], "selected")
 
+    def test_balanced_research_selection_interleaves_ranked_countries(self):
+        packets, metadata = build_research_packets(
+            self.results,
+            2,
+            calibration=self.calibration,
+            balanced_per_country=1,
+        )
+
+        self.assertEqual([row["ticker"] for row in packets], ["TWO", "ONE"])
+        self.assertEqual(metadata["balanced_per_country"], 1)
+        self.assertEqual([row["selected_rank"] for row in packets], [2, 1])
+
     def test_prompt_forbids_rank_changes_and_requires_citations(self):
         packets, _ = build_research_packets(
             self.results,
@@ -189,6 +201,27 @@ class ResearchTests(unittest.TestCase):
 
         self.assertEqual(failed[0]["status"], "error")
         self.assertEqual(failed[1]["status"], "complete")
+
+    def test_cache_identity_ignores_evidence_retrieval_time(self):
+        packets, _ = build_research_packets(
+            self.results,
+            1,
+            calibration=self.calibration,
+        )
+        packets[0]["evidence_documents"] = [{
+            "url": "https://www.sec.gov/filing",
+            "content_hash": "a" * 64,
+            "retrieved_at": "2026-08-01T00:00:00+00:00",
+        }]
+        with tempfile.TemporaryDirectory() as directory:
+            cache = ResearchCache(Path(directory), "v-test", "fixture:model")
+            cache.put(packets[0], {"cached": True})
+            refreshed = json.loads(json.dumps(packets[0]))
+            refreshed["evidence_documents"][0]["retrieved_at"] = (
+                "2026-08-06T00:00:00+00:00"
+            )
+
+            self.assertEqual(cache.get(refreshed), {"cached": True})
 
     def test_runner_rejects_citations_not_present_in_packet_evidence(self):
         packets, _ = build_research_packets(self.results, 1, calibration=self.calibration)

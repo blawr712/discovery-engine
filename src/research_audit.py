@@ -59,6 +59,7 @@ def audit_research_payload(payload: dict, gates: dict | None = None) -> dict:
             "evidence_publishers": sorted({
                 str(row.get("publisher")) for row in evidence if row.get("publisher")
             }),
+            "evidence_providers": packet.get("evidence_providers", {}),
             "synthesis_status": output.get("status", "missing"),
             "cached": bool(output.get("cached")),
             "validation_status": (
@@ -272,7 +273,7 @@ def finalize_research_review(
 def _write_candidate_audit(path: Path, companies: list[dict]) -> None:
     fields = [
         "ticker", "country", "selected_rank", "official_rank",
-        "evidence_document_count", "synthesis_status", "cached",
+        "evidence_document_count", "evidence_providers", "synthesis_status", "cached",
         "validation_status", "claim_count", "cited_claim_count",
         "citation_count", "sections_present", "human_review_status",
         "validation_error",
@@ -283,6 +284,7 @@ def _write_candidate_audit(path: Path, companies: list[dict]) -> None:
         for company in companies:
             writer.writerow({
                 **{field: company.get(field) for field in fields},
+                "evidence_providers": json.dumps(company.get("evidence_providers", {})),
                 "sections_present": sum(company.get("section_presence", {}).values()),
             })
 

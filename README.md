@@ -113,6 +113,30 @@ allowlisted in `config/settings.json`. Terminal and manifest summaries report
 evidence documents, failures, cache hits, misses, expiry, and read errors. AI
 synthesis remains disabled.
 
+For a country-balanced research batch, select an equal maximum from the
+ranked Canadian and U.S. queues:
+
+```powershell
+python main.py --research-run RUN_ID --balanced-research 3
+```
+
+Automated SEDAR+ collection is intentionally unsupported because its public
+terms prohibit scraping and automated access. Canadian evidence instead uses
+explicitly curated issuer-primary URLs. Review
+`config/canadian_sources.example.json`, allowlist only issuer domains you
+intend to contact, and run:
+
+```powershell
+$env:SOURCE_USER_AGENT = "Discovery Engine your-email@example.com"
+python main.py --research-run RUN_ID --balanced-research 3 --collect-sources --canadian-source-manifest config/canadian_sources.example.json
+```
+
+The engine fetches only the listed HTTPS URLs, caches their content, computes
+SHA-256 hashes, optionally enforces `expected_content_hash`, and records
+per-candidate provider provenance. SEC collection remains restricted to U.S.
+candidates; issuer-manifest collection remains restricted to Canadian
+candidates.
+
 Validated cited synthesis is an additional opt-in action. First set
 `research.ai_synthesis_enabled` to `true` in `config/settings.json`, then keep
 the API key and SEC contact identity only in the local terminal environment:

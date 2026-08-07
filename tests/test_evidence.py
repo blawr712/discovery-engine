@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from src.evidence import (
+    CanadianIssuerManifestProvider,
     EvidenceDocument,
     HttpCache,
     ManifestEvidenceProvider,
@@ -118,6 +119,85 @@ class EvidenceTests(unittest.TestCase):
     def test_sec_user_agent_must_include_contact(self):
         with self.assertRaises(ValueError):
             SecEdgarProvider("Discovery Engine")
+
+    def test_canadian_manifest_fetches_only_curated_allowlisted_urls(self):
+        raw = b"<html><body>Canadian issuer results</body></html>"
+        calls = []
+
+        def fetcher(url, headers):
+            calls.append((url, headers))
+            return raw
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "canadian.json"
+            path.write_text(json.dumps({
+                "version": 1,
+                "allowed_domains": ["issuer.example.com"],
+                "companies": {"TEST.TO": [{
+                    "url": "https://issuer.example.com/results",
+                    "title": "Quarterly results",
+                    "publisher": "Test Issuer",
+                    "published_at": "2026-07-01",
+                    "source_type": "earnings_release",
+                    "expected_content_hash": hashlib.sha256(raw).hexdigest(),
+                }]},
+            }), encoding="utf-8")
+            provider = CanadianIssuerManifestProvider(
+                path,
+                "Discovery Engine research@example.com",
+                cache=HttpCache(root / "cache", fetcher=fetcher),
+            )
+            documents = provider.collect({"ticker": "TEST.TO", "country": "CA"})
+            us_documents = provider.collect({"ticker": "TEST.TO", "country": "US"})
+            evidence = collect_evidence(
+                [{"ticker": "TEST.TO", "country": "CA"}],
+                [provider],
+            )
+
+        self.assertEqual(len(documents), 1)
+        self.assertEqual(documents[0].excerpt, "Canadian issuer results")
+        self.assertEqual(us_documents, [])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(evidence["document_count"], 1)
+        self.assertEqual(
+            evidence["companies"][0]["provider_document_counts"],
+            {"canadian_issuer_manifest": 1},
+        )
+
+    def test_canadian_manifest_rejects_unapproved_domain_and_hash_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "canadian.json"
+            path.write_text(json.dumps({
+                "version": 1,
+                "allowed_domains": ["issuer.example.com"],
+                "companies": {"TEST.TO": [{
+                    "url": "https://other.example.com/results",
+                    "title": "Results",
+                    "publisher": "Issuer",
+                    "published_at": "2026-07-01",
+                    "source_type": "earnings_release",
+                }]},
+            }), encoding="utf-8")
+            provider = CanadianIssuerManifestProvider(
+                path,
+                "Discovery Engine research@example.com",
+                cache=HttpCache(root / "cache", fetcher=lambda *_: b"changed"),
+            )
+            with self.assertRaisesRegex(ValueError, "not allowed"):
+                provider.collect({"ticker": "TEST.TO", "country": "CA"})
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["companies"]["TEST.TO"][0]["url"] = "https://issuer.example.com/results"
+            value["companies"]["TEST.TO"][0]["expected_content_hash"] = "a" * 64
+            path.write_text(json.dumps(value), encoding="utf-8")
+            provider = CanadianIssuerManifestProvider(
+                path,
+                "Discovery Engine research@example.com",
+                cache=HttpCache(root / "other-cache", fetcher=lambda *_: b"changed"),
+            )
+            with self.assertRaisesRegex(ValueError, "hash changed"):
+                provider.collect({"ticker": "TEST.TO", "country": "CA"})
 
     def test_cache_counts_expiry_and_corrupt_entry_recovery(self):
         now = datetime(2026, 8, 1, tzinfo=timezone.utc)

@@ -9,6 +9,10 @@
 - Added deterministic claim-risk triage and configurable review sampling
 - Added mandatory high-risk and per-section review coverage with stable claim IDs
 - Added tamper detection between audited samples and finalized review queues
+- Added country-balanced ranked research selection
+- Added curated, allowlisted Canadian issuer-primary evidence collection
+- Added country-aware SEC/Canadian provider routing and provider provenance
+- Fixed synthesis cache misses caused only by volatile evidence retrieval times
 
 - Added the v0.3 specification and staged acceptance criteria
 - Added configuration-driven structural asset classification

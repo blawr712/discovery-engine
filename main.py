@@ -32,6 +32,7 @@ from src.research import (
     export_research_packets,
 )
 from src.evidence import (
+    CanadianIssuerManifestProvider,
     HttpCache,
     ManifestEvidenceProvider,
     SecEdgarProvider,
@@ -101,10 +102,16 @@ def main(arguments=None):
     if args.research_run:
         research_saved_run(
             args.research_run,
-            args.top or RESEARCH_DEFAULT_TOP,
+            (
+                args.top
+                or (args.balanced_research * 2 if args.balanced_research else None)
+                or RESEARCH_DEFAULT_TOP
+            ),
             collect_sources=args.collect_sources,
             source_manifest=args.source_manifest,
+            canadian_source_manifest=args.canadian_source_manifest,
             synthesize=args.synthesize,
+            balanced_per_country=args.balanced_research,
         )
         return
 
@@ -307,7 +314,9 @@ def research_saved_run(
     top_n: int,
     collect_sources: bool = False,
     source_manifest: str | None = None,
+    canadian_source_manifest: str | None = None,
     synthesize: bool = False,
+    balanced_per_country: int | None = None,
 ) -> None:
     """Build deterministic research packets from a completed local run."""
     try:
@@ -317,6 +326,7 @@ def research_saved_run(
             results,
             top_n,
             calibration=calibration,
+            balanced_per_country=balanced_per_country,
         )
     except (FileNotFoundError, ValueError) as error:
         raise SystemExit(str(error)) from error
@@ -335,6 +345,24 @@ def research_saved_run(
             providers.append(ManifestEvidenceProvider(Path(source_manifest)))
         except (OSError, ValueError, json.JSONDecodeError) as error:
             raise SystemExit(f"Invalid source manifest: {error}") from error
+    if canadian_source_manifest:
+        user_agent = (
+            os.environ.get("SOURCE_USER_AGENT", "").strip()
+            or os.environ.get("SEC_USER_AGENT", "").strip()
+        )
+        if not user_agent:
+            raise SystemExit(
+                "--canadian-source-manifest requires SOURCE_USER_AGENT or "
+                "SEC_USER_AGENT with a contact email."
+            )
+        try:
+            providers.append(CanadianIssuerManifestProvider(
+                Path(canadian_source_manifest),
+                user_agent,
+                HttpCache(),
+            ))
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            raise SystemExit(f"Invalid Canadian source manifest: {error}") from error
     if providers:
         evidence = collect_evidence(packets, providers)
         attach_evidence(packets, evidence)

@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
 from html.parser import HTMLParser
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -228,36 +229,119 @@ class ManifestEvidenceProvider:
         return documents
 
 
+class CanadianIssuerManifestProvider:
+    """Fetch explicitly curated Canadian issuer-primary source URLs."""
+
+    name = "canadian_issuer_manifest"
+
+    def __init__(
+        self,
+        path: Path,
+        user_agent: str,
+        cache: HttpCache | None = None,
+        max_documents: int = EVIDENCE_MAX_DOCUMENTS,
+    ) -> None:
+        if not user_agent or "@" not in user_agent:
+            raise ValueError("SOURCE_USER_AGENT must include a contact email.")
+        value = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(value, dict) or value.get("version") != 1:
+            raise ValueError("Canadian source manifest must use version 1.")
+        companies = value.get("companies")
+        domains = value.get("allowed_domains")
+        if not isinstance(companies, dict) or not isinstance(domains, list) or not domains:
+            raise ValueError("Canadian source manifest requires companies and allowed_domains.")
+        self.sources = companies
+        self.allowed_domains = tuple(_validated_domain(value) for value in domains)
+        self.headers = {"User-Agent": user_agent, "Accept-Encoding": "identity"}
+        self.cache = cache or HttpCache()
+        self.max_documents = max_documents
+
+    def collect(self, packet: dict) -> list[EvidenceDocument]:
+        if str(packet.get("country", "")).upper() != "CA":
+            return []
+        ticker = str(packet.get("ticker", "")).upper()
+        rows = self.sources.get(ticker, [])
+        if not isinstance(rows, list):
+            raise ValueError(f"Canadian manifest entry must be a list: {ticker}")
+        documents = []
+        for row in rows[:self.max_documents]:
+            if not isinstance(row, dict):
+                raise ValueError(f"Canadian manifest source must be an object: {ticker}")
+            url = str(row.get("url", ""))
+            validate_source_url(url, self.allowed_domains)
+            source_type = str(row.get("source_type", ""))
+            if source_type not in {"company_ir", "earnings_release"}:
+                raise ValueError(
+                    f"Canadian issuer source_type must be company_ir or earnings_release: {ticker}"
+                )
+            if str(row.get("format") or "html").lower() != "html":
+                raise ValueError(f"Canadian issuer source format must be html: {ticker}")
+            raw, _ = self.cache.get(url, self.headers)
+            content_hash = hashlib.sha256(raw).hexdigest()
+            expected_hash = str(row.get("expected_content_hash") or "")
+            if expected_hash and expected_hash != content_hash:
+                raise ValueError(f"Canadian source hash changed for {ticker}: {url}")
+            documents.append(EvidenceDocument(
+                ticker=ticker,
+                url=url,
+                title=str(row.get("title") or ""),
+                publisher=str(row.get("publisher") or ""),
+                published_at=row.get("published_at"),
+                retrieved_at=datetime.now(timezone.utc).isoformat(),
+                source_type=source_type,
+                content_hash=content_hash,
+                quality_priority=QUALITY_PRIORITY[source_type],
+                excerpt=_html_excerpt(raw, EVIDENCE_MAX_EXCERPT_CHARS),
+            ))
+        return documents
+
+
 def collect_evidence(packets: list[dict], providers: list[EvidenceProvider]) -> dict:
     """Collect, validate, deduplicate, and isolate failures by company/provider."""
     companies = []
     for packet in packets:
         ticker = str(packet.get("ticker", ""))
-        documents: list[EvidenceDocument] = []
+        documents: list[
+            tuple[EvidenceDocument, tuple[str, ...] | None, str]
+        ] = []
         failures = []
         for provider in providers:
             try:
-                documents.extend(provider.collect(packet))
+                documents.extend(
+                    (
+                        document,
+                        getattr(provider, "allowed_domains", None),
+                        provider.name,
+                    )
+                    for document in provider.collect(packet)
+                )
             except Exception as error:
                 failures.append({"provider": provider.name, "error": f"{type(error).__name__}: {error}"})
         unique = {}
         invalid = []
-        for document in documents:
-            errors = validate_document(document)
+        for document, allowed_domains, provider_name in documents:
+            errors = validate_document(document, allowed_domains=allowed_domains)
             if errors:
                 invalid.append({"url": document.url, "errors": errors})
                 continue
             key = (document.url.rstrip("/"), document.content_hash)
-            unique[key] = document
+            unique[key] = (document, provider_name)
         ordered = sorted(
             unique.values(),
-            key=lambda item: (item.quality_priority, item.published_at or ""),
+            key=lambda item: (
+                item[0].quality_priority,
+                item[0].published_at or "",
+            ),
             reverse=True,
         )
+        provider_counts = {}
+        for _, provider_name in ordered:
+            provider_counts[provider_name] = provider_counts.get(provider_name, 0) + 1
         companies.append({
             "ticker": ticker,
             "status": "complete" if ordered else "no_evidence",
-            "documents": [item.as_dict() for item in ordered],
+            "documents": [item.as_dict() for item, _ in ordered],
+            "provider_document_counts": dict(sorted(provider_counts.items())),
             "failures": failures,
             "invalid_documents": invalid,
         })
@@ -296,6 +380,7 @@ def attach_evidence(packets: list[dict], evidence: dict) -> None:
         company = lookup.get(str(packet.get("ticker")), {})
         packet["evidence_documents"] = company.get("documents", [])
         packet["evidence_failures"] = company.get("failures", [])
+        packet["evidence_providers"] = company.get("provider_document_counts", {})
         packet["source_policy"]["external_sources_attached"] = bool(company.get("documents"))
         claim_classes = packet.setdefault("claim_classes", {})
         claim_classes["sourced"] = [
@@ -311,19 +396,26 @@ def export_evidence(evidence: dict, run_id: str, output_directory: Path) -> str:
     return str(path)
 
 
-def validate_source_url(url: str) -> None:
+def validate_source_url(
+    url: str,
+    allowed_domains: tuple[str, ...] | None = None,
+) -> None:
     parsed = urlparse(url)
     if parsed.scheme != "https" or not parsed.hostname:
         raise ValueError("Evidence URLs must use HTTPS.")
     host = parsed.hostname.lower()
-    if not any(host == domain or host.endswith(f".{domain}") for domain in EVIDENCE_ALLOWED_DOMAINS):
+    domains = allowed_domains or EVIDENCE_ALLOWED_DOMAINS
+    if not any(host == domain or host.endswith(f".{domain}") for domain in domains):
         raise ValueError(f"Evidence domain is not allowed: {host}")
 
 
-def validate_document(document: EvidenceDocument) -> list[str]:
+def validate_document(
+    document: EvidenceDocument,
+    allowed_domains: tuple[str, ...] | None = None,
+) -> list[str]:
     errors = []
     try:
-        validate_source_url(document.url)
+        validate_source_url(document.url, allowed_domains)
     except ValueError as error:
         errors.append(str(error))
     if not document.title.strip():
@@ -356,6 +448,21 @@ def _fetch(url: str, headers: dict[str, str]) -> bytes:
         content = response.read()
     time.sleep(0.12)
     return content
+
+
+def _validated_domain(value: object) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"Invalid allowed evidence domain: {value}")
+    domain = str(value).strip().lower().rstrip(".")
+    if not domain or ":" in domain or "/" in domain or domain == "localhost":
+        raise ValueError(f"Invalid allowed evidence domain: {value}")
+    try:
+        ipaddress.ip_address(domain)
+    except ValueError:
+        pass
+    else:
+        raise ValueError(f"IP addresses cannot be evidence domains: {value}")
+    return domain
 
 
 def _html_excerpt(raw: bytes, maximum: int) -> str:

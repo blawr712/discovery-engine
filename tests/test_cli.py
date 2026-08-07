@@ -96,6 +96,18 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--top", "5"])
 
+    def test_balanced_research_is_scoped_to_research_and_excludes_top(self):
+        args = parse_args(["--research-run", "run-123", "--balanced-research", "3"])
+
+        self.assertEqual(args.balanced_research, 3)
+        with self.assertRaises(SystemExit):
+            parse_args(["--balanced-research", "3"])
+        with self.assertRaises(SystemExit):
+            parse_args([
+                "--research-run", "run-123", "--top", "5",
+                "--balanced-research", "3",
+            ])
+
     def test_source_collection_options_require_research_run(self):
         args = parse_args([
             "--research-run", "run-123", "--collect-sources",
@@ -104,6 +116,11 @@ class CliTests(unittest.TestCase):
 
         self.assertTrue(args.collect_sources)
         self.assertEqual(args.source_manifest, "sources.json")
+        canadian = parse_args([
+            "--research-run", "run-123",
+            "--canadian-source-manifest", "canadian.json",
+        ])
+        self.assertEqual(canadian.canadian_source_manifest, "canadian.json")
         with self.assertRaises(SystemExit):
             parse_args(["--collect-sources"])
 

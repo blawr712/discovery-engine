@@ -55,7 +55,7 @@ class ResearchCache:
             {
                 "prompt_version": self.prompt_version,
                 "provider_version": self.provider_version,
-                "packet": packet,
+                "packet": _stable_cache_packet(packet),
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -63,6 +63,21 @@ class ResearchCache:
         digest = hashlib.sha256(payload).hexdigest()
         ticker = _safe_name(str(packet.get("ticker") or "UNKNOWN"))
         return Path(self.directory) / f"{ticker}-{digest}.json"
+
+
+def _stable_cache_packet(packet: dict) -> dict:
+    """Exclude retrieval-time metadata that cannot change synthesis content."""
+    stable = dict(packet)
+    stable["evidence_documents"] = [
+        {
+            key: value
+            for key, value in document.items()
+            if key != "retrieved_at"
+        }
+        for document in packet.get("evidence_documents", [])
+        if isinstance(document, dict)
+    ]
+    return stable
 
 
 class ResearchRunner:
@@ -160,6 +175,7 @@ def build_research_packets(
     results: list[dict],
     top_n: int,
     calibration: dict | None = None,
+    balanced_per_country: int | None = None,
 ) -> tuple[list[dict], dict]:
     """Build deterministic packets from the selected passing research queue."""
     if top_n < 1:
@@ -185,8 +201,13 @@ def build_research_packets(
         row for row in calibration["rows"] if row.get(rank_field) is not None
     ]
     ranked.sort(key=lambda row: (row[rank_field], str(row.get("ticker", ""))))
+    selected_rows = (
+        _balanced_ranked_rows(ranked, balanced_per_country, result_lookup)
+        if balanced_per_country is not None
+        else ranked[:top_n]
+    )
     packets = []
-    for row in ranked[:top_n]:
+    for row in selected_rows:
         ticker = str(row.get("ticker", ""))
         source = result_lookup[ticker]
         technical_signals = _factor_notes(source, "factor_breakdown")
@@ -242,8 +263,33 @@ def build_research_packets(
         "scenario_acceptance": acceptance,
         "core_factors": sorted(core_factors),
         "requested_candidates": top_n,
+        "balanced_per_country": balanced_per_country,
         "packet_count": len(packets),
     }
+
+
+def _balanced_ranked_rows(
+    rows: list[dict],
+    per_country: int,
+    result_lookup: dict[str, dict],
+) -> list[dict]:
+    if isinstance(per_country, bool) or not isinstance(per_country, int) or per_country < 1:
+        raise ValueError("Balanced research count must be a positive integer.")
+    groups = {
+        country: [
+            row for row in rows
+            if str(
+                result_lookup.get(str(row.get("ticker", "")), {}).get("country", "")
+            ).upper() == country
+        ][:per_country]
+        for country in ("CA", "US")
+    }
+    selected = []
+    for index in range(max((len(group) for group in groups.values()), default=0)):
+        for country in ("CA", "US"):
+            if index < len(groups[country]):
+                selected.append(groups[country][index])
+    return selected
 
 
 def build_research_prompt(packet: dict, prompt_version: str) -> str:

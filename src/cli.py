@@ -57,6 +57,12 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         help="research only the top COUNT selected candidates",
     )
     parser.add_argument(
+        "--balanced-research",
+        type=_positive_integer,
+        metavar="PER_COUNTRY",
+        help="research up to PER_COUNTRY selected Canadian and U.S. candidates",
+    )
+    parser.add_argument(
         "--collect-sources",
         action="store_true",
         help="collect cached primary-source evidence for research packets",
@@ -67,6 +73,11 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         help="attach curated, hashed evidence from a local JSON manifest",
     )
     parser.add_argument(
+        "--canadian-source-manifest",
+        metavar="PATH",
+        help="fetch allowlisted Canadian issuer-primary URLs from a local manifest",
+    )
+    parser.add_argument(
         "--synthesize",
         action="store_true",
         help="generate validated cited briefs from attached evidence",
@@ -74,12 +85,23 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(arguments)
     if args.top is not None and args.research_run is None:
         parser.error("--top requires --research-run")
-    if (args.collect_sources or args.source_manifest) and args.research_run is None:
+    if args.balanced_research is not None and args.research_run is None:
+        parser.error("--balanced-research requires --research-run")
+    if args.top is not None and args.balanced_research is not None:
+        parser.error("--top and --balanced-research cannot be combined")
+    if (
+        args.collect_sources or args.source_manifest or args.canadian_source_manifest
+    ) and args.research_run is None:
         parser.error("source options require --research-run")
     if args.synthesize and args.research_run is None:
         parser.error("--synthesize requires --research-run")
-    if args.synthesize and not (args.collect_sources or args.source_manifest):
-        parser.error("--synthesize requires --collect-sources or --source-manifest")
+    if args.synthesize and not (
+        args.collect_sources or args.source_manifest or args.canadian_source_manifest
+    ):
+        parser.error(
+            "--synthesize requires --collect-sources, --source-manifest, "
+            "or --canadian-source-manifest"
+        )
     return args
 
 
