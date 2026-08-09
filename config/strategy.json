@@ -1,7 +1,7 @@
 {
     "project": {
         "name": "Discovery Engine",
-        "version": "0.3.0-dev"
+        "version": "0.3.0"
     },
 
     "asset_classification": {

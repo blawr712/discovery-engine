@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.3 Intelligence (in progress)
+## v0.3.0 Intelligence — 2026-08-09
 
 - Started Sprint 5 batch release validation
 - Added Responses API token-usage reporting for uncached research synthesis
