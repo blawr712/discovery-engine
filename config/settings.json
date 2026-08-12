@@ -9,7 +9,8 @@
     "directories": {
         "output_directory": "data/exports",
         "cache_directory": "data/cache",
-        "run_directory": "data/runs"
+        "run_directory": "data/runs",
+        "history_database": "data/history/discovery_history.sqlite3"
     },
 
     "runtime": {

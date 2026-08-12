@@ -6,7 +6,7 @@ Discovery Engine is a modular Python platform that analyzes the North American e
 
 ## Current Status
 
-**Version:** v0.3.0 Intelligence — released 2026-08-09
+**Version:** v0.4 Platform — Sprint 1 in progress
 
 The project now applies an explainable metadata pre-filter, persistent cache,
 bounded concurrent collection, transient retry/backoff, and resumable runs.
@@ -21,8 +21,14 @@ distributions can be validated before ranking weights change. Valuation and
 risk factors follow explicit data-quality rules: stale and invalid inputs do
 not score, while usable undated inputs reduce confidence.
 
-The release is documented in `V0.3_RELEASE.md`. The next development phase is
-v0.4 Platform: persistent history, change detection, and a research dashboard.
+The v0.3 release is documented in `V0.3_RELEASE.md`. v0.4 begins with an
+offline SQLite history index while retaining completed run files as the source
+of truth:
+
+```powershell
+python main.py --index-run RUN_ID
+python main.py --history-summary
+```
 
 ## Core Principles
 

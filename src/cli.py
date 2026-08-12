@@ -50,6 +50,16 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         metavar="RUN_ID",
         help="finalize an audited research run from its completed review CSV",
     )
+    selection.add_argument(
+        "--index-run",
+        metavar="RUN_ID",
+        help="index a completed saved run into the local history database",
+    )
+    selection.add_argument(
+        "--history-summary",
+        action="store_true",
+        help="show the local offline history database summary",
+    )
     parser.add_argument(
         "--top",
         type=_positive_integer,

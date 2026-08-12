@@ -145,6 +145,15 @@ class CliTests(unittest.TestCase):
         final = parse_args(["--finalize-research-review", "run-123"])
         self.assertEqual(final.finalize_research_review, "run-123")
 
+    def test_history_actions_are_exclusive(self):
+        indexed = parse_args(["--index-run", "run-123"])
+        summary = parse_args(["--history-summary"])
+
+        self.assertEqual(indexed.index_run, "run-123")
+        self.assertTrue(summary.history_summary)
+        with self.assertRaises(SystemExit):
+            parse_args(["--history-summary", "--index-run", "run-123"])
+
 
 if __name__ == "__main__":
     unittest.main()

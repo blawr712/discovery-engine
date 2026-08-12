@@ -24,6 +24,9 @@ DIRECTORIES = SETTINGS.get("directories", {})
 OUTPUT_DIR = BASE_DIR / DIRECTORIES.get("output_directory", "data/exports")
 CACHE_DIR = BASE_DIR / DIRECTORIES.get("cache_directory", "data/cache")
 RUN_DIR = BASE_DIR / DIRECTORIES.get("run_directory", "data/runs")
+HISTORY_DATABASE = BASE_DIR / DIRECTORIES.get(
+    "history_database", "data/history/discovery_history.sqlite3"
+)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CACHE_CONFIG = SETTINGS.get("cache", {})

@@ -1,5 +1,6 @@
 import os
 import json
+import sqlite3
 from pathlib import Path
 
 from src.universe import UniverseBuilder
@@ -42,6 +43,7 @@ from src.evidence import (
 )
 from src.openai_research import OpenAIResearchProvider
 from src.research_audit import export_research_audit, finalize_research_review
+from src.history import history_summary, index_saved_run
 from src.cli import parse_args, select_universe
 from src.config import (
     BENCHMARKS,
@@ -75,6 +77,7 @@ from src.config import (
     RESEARCH_PROMPT_VERSION,
     SYNTHESIS_MODEL,
     SYNTHESIS_PROVIDER,
+    HISTORY_DATABASE,
 )
 
 
@@ -90,6 +93,12 @@ def print_progress(
 
 def main(arguments=None):
     args = parse_args(arguments)
+    if args.index_run:
+        index_history_run(args.index_run)
+        return
+    if args.history_summary:
+        print_history_summary()
+        return
     if args.recalibrate_run:
         recalibrate_saved_run(args.recalibrate_run)
         return
@@ -114,7 +123,6 @@ def main(arguments=None):
             balanced_per_country=args.balanced_research,
         )
         return
-
     provider = RateLimitedMarketDataSource(
         YFinanceSource(),
         metadata_interval_seconds=METADATA_INTERVAL_SECONDS,
@@ -241,6 +249,28 @@ def main(arguments=None):
         f"{intelligence['research_artifacts']['selected_research_report_path']}"
     )
     print(f"Manifest saved to: {run_state.manifest_path}")
+
+
+def index_history_run(run_id: str) -> None:
+    try:
+        result = index_saved_run(HISTORY_DATABASE, RUN_DIR, run_id)
+    except (FileNotFoundError, OSError, ValueError, sqlite3.Error) as error:
+        raise SystemExit(f"Unable to index saved run: {error}") from error
+    print(f"History index complete for run: {result['run_id']}")
+    print(f"Indexed results: {result['indexed_results']}")
+    print(f"History database: {result['database_path']}")
+
+
+def print_history_summary() -> None:
+    try:
+        result = history_summary(HISTORY_DATABASE)
+    except (OSError, sqlite3.Error) as error:
+        raise SystemExit(f"Unable to read history index: {error}") from error
+    print("Discovery Engine history summary")
+    print(f"Indexed runs: {result['run_count']}")
+    print(f"Indexed results: {result['result_count']}")
+    if result["latest_run"]:
+        print(f"Latest run: {result['latest_run']['run_id']}")
 
 
 def export_intelligence_artifacts(results: list[dict], run_id: str) -> dict:

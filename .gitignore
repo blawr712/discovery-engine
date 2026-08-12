@@ -21,6 +21,7 @@ data/exports/
 data/outputs/
 data/cache/
 data/runs/
+data/history/
 
 # Logs
 *.log
