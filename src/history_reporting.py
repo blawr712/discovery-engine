@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import sqlite3
 
+from src.history import connect_history_read_only
 from src.history_comparison import (
     _candidate_ranks,
     compare_indexed_runs,
@@ -31,7 +32,7 @@ def build_ticker_history(database_path: Path, ticker: str) -> dict:
         raise ValueError("ticker is required")
     if not path.is_file():
         raise FileNotFoundError(f"History database not found: {path}")
-    with closing(sqlite3.connect(path)) as connection:
+    with closing(connect_history_read_only(path)) as connection:
         runs = connection.execute(
             """SELECT run_id, completed_at, fingerprint, universe_size
                FROM runs ORDER BY completed_at, run_id"""
@@ -140,6 +141,8 @@ def build_weekly_report(database_path: Path) -> dict:
         "same_universe_membership": same_membership,
         "old_universe_size": old_run["universe_size"],
         "new_universe_size": new_run["universe_size"],
+        "old_completed_at": old_run["completed_at"],
+        "new_completed_at": new_run["completed_at"],
         "warnings": warnings,
     }
     comparison["compatibility"] = compatibility
@@ -171,7 +174,7 @@ def _latest_compatible_pair(database_path: Path) -> tuple[dict, dict]:
     path = Path(database_path)
     if not path.is_file():
         raise FileNotFoundError(f"History database not found: {path}")
-    with closing(sqlite3.connect(path)) as connection:
+    with closing(connect_history_read_only(path)) as connection:
         rows = connection.execute(
             """SELECT run_id, completed_at, fingerprint, universe_size, completed_count
                FROM runs WHERE status = 'complete'

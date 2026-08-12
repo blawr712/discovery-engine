@@ -76,6 +76,18 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="compare the latest compatible indexed runs and export a briefing",
     )
+    selection.add_argument(
+        "--dashboard",
+        action="store_true",
+        help="serve the read-only local history dashboard on loopback",
+    )
+    parser.add_argument(
+        "--dashboard-port",
+        type=_port,
+        default=8765,
+        metavar="PORT",
+        help="loopback port for --dashboard (default: 8765)",
+    )
     parser.add_argument(
         "--top",
         type=_positive_integer,
@@ -109,6 +121,8 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         help="generate validated cited briefs from attached evidence",
     )
     args = parser.parse_args(arguments)
+    if args.dashboard_port != 8765 and not args.dashboard:
+        parser.error("--dashboard-port requires --dashboard")
     if args.top is not None and args.research_run is None:
         parser.error("--top requires --research-run")
     if args.balanced_research is not None and args.research_run is None:
@@ -129,6 +143,13 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
             "or --canadian-source-manifest"
         )
     return args
+
+
+def _port(value: str) -> int:
+    port = int(value)
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("must be between 1 and 65535")
+    return port
 
 
 def select_universe(

@@ -170,6 +170,18 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--weekly-report", "--history-summary"])
 
+    def test_dashboard_is_exclusive_and_validates_port(self):
+        args = parse_args(["--dashboard", "--dashboard-port", "9000"])
+
+        self.assertTrue(args.dashboard)
+        self.assertEqual(args.dashboard_port, 9000)
+        with self.assertRaises(SystemExit):
+            parse_args(["--dashboard-port", "9000"])
+        with self.assertRaises(SystemExit):
+            parse_args(["--dashboard", "--dashboard-port", "70000"])
+        with self.assertRaises(SystemExit):
+            parse_args(["--dashboard", "--weekly-report"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,7 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from src.history import history_summary, index_saved_run
+from src.history import connect_history_read_only, history_summary, index_saved_run
 from src.run_state import RunState
 
 
@@ -47,6 +47,20 @@ class HistoryTests(unittest.TestCase):
 
             self.assertEqual(summary["run_count"], 0)
             self.assertFalse(path.exists())
+
+    def test_read_only_connection_rejects_writes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runs = root / "runs"
+            database = root / "history.sqlite3"
+            clock = lambda: datetime(2026, 8, 9, tzinfo=timezone.utc)
+            state = RunState.start_or_resume(runs, "fingerprint", 0, clock=clock)
+            state.complete([], "report.csv")
+            index_saved_run(database, runs, state.run_id)
+
+            with closing(connect_history_read_only(database)) as connection:
+                with self.assertRaisesRegex(sqlite3.OperationalError, "readonly"):
+                    connection.execute("DELETE FROM runs")
 
 
 if __name__ == "__main__":

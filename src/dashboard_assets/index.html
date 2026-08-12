@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Discovery Engine · History</title>
+  <style>
+    :root { --ink:#13251f; --muted:#64736d; --paper:#f4f1e9; --card:#fffdf7; --line:#d9d5ca; --green:#164f3d; --lime:#b9dc72; --rust:#b85536; --gold:#d9a441; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:radial-gradient(circle at 90% 0,#dce8ca 0,transparent 28rem),var(--paper); font:14px/1.5 Inter,Segoe UI,sans-serif; }
+    header { padding:32px clamp(20px,5vw,72px) 24px; border-bottom:1px solid var(--line); }
+    .eyebrow { color:var(--green); font-size:11px; font-weight:800; letter-spacing:.18em; text-transform:uppercase; }
+    h1 { margin:6px 0 2px; font:600 clamp(30px,4vw,52px)/1.05 Georgia,serif; letter-spacing:-.035em; }
+    header p { margin:8px 0 0; color:var(--muted); }
+    main { max-width:1440px; margin:auto; padding:28px clamp(20px,5vw,72px) 60px; }
+    .metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:26px; }
+    .metric,.panel { background:color-mix(in srgb,var(--card) 94%,transparent); border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 30px #243d3020; }
+    .metric { padding:18px; }
+    .metric span { display:block; color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+    .metric strong { display:block; margin-top:4px; font:600 28px Georgia,serif; }
+    .panel { padding:20px; margin-bottom:18px; }
+    .panel-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:16px; }
+    h2 { margin:0; font:600 23px Georgia,serif; }
+    h3 { margin:0 0 10px; font:600 17px Georgia,serif; }
+    .subtle { color:var(--muted); font-size:12px; }
+    .filters { display:flex; flex-wrap:wrap; gap:8px; }
+    input,select,button { height:38px; border:1px solid var(--line); border-radius:8px; padding:0 11px; background:#fff; color:var(--ink); font:inherit; }
+    input { min-width:190px; }
+    button { cursor:pointer; background:var(--green); border-color:var(--green); color:#fff; font-weight:700; }
+    button:hover { background:#0c3b2d; }
+    .table-wrap { overflow:auto; max-height:560px; }
+    table { width:100%; border-collapse:collapse; white-space:nowrap; }
+    th { position:sticky; top:0; z-index:1; background:var(--card); color:var(--muted); text-align:left; font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+    th,td { padding:11px 10px; border-bottom:1px solid #e8e4db; }
+    tbody tr { cursor:pointer; }
+    tbody tr:hover { background:#edf3e4; }
+    .ticker { color:var(--green); font-weight:800; }
+    .badge { display:inline-block; padding:2px 7px; border-radius:20px; background:#e5eed6; color:var(--green); font-size:11px; font-weight:700; }
+    .weekly-grid { display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:14px; }
+    .weekly-card { padding:15px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+    .warning { color:#7b3c26; background:#f9e8d8; border-left:3px solid var(--rust); padding:9px 11px; margin-top:10px; }
+    .movement { display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid #eee9df; }
+    .positive { color:var(--green); font-weight:800; } .negative { color:var(--rust); font-weight:800; }
+    dialog { width:min(880px,calc(100vw - 32px)); border:0; border-radius:16px; padding:0; background:var(--card); box-shadow:0 30px 90px #12261e66; }
+    dialog::backdrop { background:#14251f99; backdrop-filter:blur(3px); }
+    .dialog-head { display:flex; justify-content:space-between; padding:22px; border-bottom:1px solid var(--line); }
+    .dialog-body { padding:22px; }
+    .close { width:36px; padding:0; border-radius:50%; }
+    .timeline { display:grid; grid-template-columns:150px 1fr; gap:12px 20px; margin-top:18px; }
+    .timeline-point { border-left:3px solid var(--lime); padding-left:13px; }
+    .empty { padding:30px; text-align:center; color:var(--muted); }
+    #status { position:fixed; right:18px; bottom:18px; background:var(--ink); color:#fff; padding:10px 14px; border-radius:8px; opacity:0; pointer-events:none; transition:.2s; }
+    #status.show { opacity:1; }
+    @media(max-width:900px) { .metrics{grid-template-columns:repeat(2,1fr)} .weekly-grid{grid-template-columns:1fr} .panel-head{align-items:flex-start;flex-direction:column} }
+    @media(max-width:520px) { .metrics{grid-template-columns:1fr 1fr} .metric strong{font-size:22px} input,select{width:100%} .timeline{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+  <header><div class="eyebrow">V0.4 · Local intelligence</div><h1>Discovery history</h1><p>Read-only exploration of completed, indexed equity runs.</p></header>
+  <main>
+    <section class="metrics">
+      <div class="metric"><span>Indexed runs</span><strong id="runCount">—</strong></div>
+      <div class="metric"><span>Indexed results</span><strong id="resultCount">—</strong></div>
+      <div class="metric"><span>Latest universe</span><strong id="universeCount">—</strong></div>
+      <div class="metric"><span>Latest completed</span><strong id="latestDate">—</strong></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><div><h2>Candidate explorer</h2><div class="subtle" id="tableSummary">Loading indexed candidates…</div></div>
+        <div class="filters">
+          <select id="runSelect" aria-label="Run"></select>
+          <select id="statusFilter" aria-label="Status"><option>OK</option><option>FILTERED</option><option>FAILED</option><option value="">All statuses</option></select>
+          <select id="countryFilter" aria-label="Country"><option value="">All countries</option><option>US</option><option>CA</option></select>
+          <input id="searchFilter" placeholder="Ticker or company…" aria-label="Search">
+          <button id="refreshButton">Apply</button>
+        </div>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Ticker</th><th>Company</th><th>Status</th><th>Score</th><th>Score conf.</th><th>Fund. conf.</th><th>Quality</th><th>Country</th><th>Sector</th></tr></thead><tbody id="candidateRows"></tbody></table></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><div><h2>Latest comparable change report</h2><div class="subtle" id="weeklyRange">Loading report…</div></div></div>
+      <div id="compatibilityWarning"></div>
+      <div class="weekly-grid">
+        <div class="weekly-card"><h3>Movement summary</h3><div id="movementSummary"></div></div>
+        <div class="weekly-card"><h3>Largest rank gains</h3><div id="rankGains"></div></div>
+        <div class="weekly-card"><h3>Largest rank declines</h3><div id="rankDeclines"></div></div>
+      </div>
+    </section>
+  </main>
+  <dialog id="tickerDialog"><div class="dialog-head"><div><div class="eyebrow">Indexed timeline</div><h2 id="dialogTitle"></h2></div><button class="close" id="closeDialog" aria-label="Close">×</button></div><div class="dialog-body" id="dialogBody"></div></dialog>
+  <div id="status"></div>
+  <script>
+    const $ = id => document.getElementById(id);
+    const number = value => value == null ? '—' : Number(value).toLocaleString(undefined,{maximumFractionDigits:2});
+    const date = value => value ? new Date(value).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}) : '—';
+    const text = (tag,value,className='') => { const el=document.createElement(tag); el.textContent=value ?? '—'; if(className) el.className=className; return el; };
+    async function api(path){ const response=await fetch(path); const payload=await response.json(); if(!response.ok) throw new Error(payload.error||'Request failed'); return payload; }
+    function notify(message){ $('status').textContent=message; $('status').classList.add('show'); setTimeout(()=>$('status').classList.remove('show'),2600); }
+
+    async function loadOverview(){
+      const data=await api('/api/overview'); $('runCount').textContent=number(data.run_count); $('resultCount').textContent=number(data.result_count);
+      const latest=data.runs[0]; $('universeCount').textContent=number(latest?.universe_size); $('latestDate').textContent=date(latest?.completed_at);
+      $('runSelect').replaceChildren(...data.runs.map(run=>{ const option=document.createElement('option'); option.value=run.run_id; option.textContent=`${date(run.completed_at)} · ${number(run.universe_size)}`; return option; }));
+    }
+    async function loadCandidates(){
+      const params=new URLSearchParams({run_id:$('runSelect').value,status:$('statusFilter').value,country:$('countryFilter').value,search:$('searchFilter').value,limit:'100'});
+      const data=await api('/api/candidates?'+params); $('tableSummary').textContent=`Showing ${data.rows.length} of ${number(data.total)} matches · click a company for its timeline`;
+      const body=$('candidateRows'); body.replaceChildren();
+      for(const row of data.rows){ const tr=document.createElement('tr'); tr.dataset.ticker=row.ticker;
+        [row.rank,row.ticker,row.company_name,row.status,number(row.discovery_score),number(row.score_confidence),number(row.fundamental_confidence),row.fundamental_data_quality,row.country,row.sector].forEach((value,index)=>tr.append(text('td',value,index===1?'ticker':'')));
+        body.append(tr);
+      }
+      if(!data.rows.length){ const tr=document.createElement('tr'); const td=text('td','No candidates match these filters.','empty'); td.colSpan=10; tr.append(td); body.append(tr); }
+    }
+    function movements(target,rows,positive){ const root=$(target); root.replaceChildren(); for(const row of rows.slice(0,7)){ const line=document.createElement('div'); line.className='movement'; line.append(text('span',row.ticker,'ticker'),text('span',`${row.old_rank} → ${row.new_rank} (${row.rank_change>0?'+':''}${row.rank_change})`,positive?'positive':'negative')); root.append(line); } }
+    async function loadWeekly(){ const data=await api('/api/weekly'); $('weeklyRange').textContent=`${date(data.compatibility.old_completed_at)} → ${date(data.compatibility.new_completed_at)} · ${data.compatibility.classification.replaceAll('_',' ')}`;
+      $('movementSummary').replaceChildren(...[['Promotions to OK',data.promotions_to_ok.length],['Demotions from OK',data.demotions_from_ok.length],['Status transitions',data.summary.status_transitions],['Score changes',data.summary.score_changes],['Data-quality changes',data.summary.data_quality_changes]].map(([label,value])=>{const line=document.createElement('div');line.className='movement';line.append(text('span',label),text('strong',number(value)));return line;}));
+      movements('rankGains',data.biggest_rank_gains,true); movements('rankDeclines',data.biggest_rank_declines,false);
+      const warning=$('compatibilityWarning'); warning.replaceChildren(); for(const item of data.compatibility.warnings){warning.append(text('div',item,'warning'));}
+    }
+    async function openTicker(ticker){ try{ const data=await api('/api/ticker/'+encodeURIComponent(ticker)); $('dialogTitle').textContent=`${ticker} · ${data.appearances} appearances`; const body=$('dialogBody'); body.replaceChildren();
+      const summary=text('div',`Best rank ${data.best_rank??'—'} · Worst rank ${data.worst_rank??'—'} · ${data.status_transition_count} status transitions`,'subtle'); body.append(summary); const timeline=document.createElement('div'); timeline.className='timeline';
+      for(const point of data.timeline){ timeline.append(text('div',date(point.completed_at),'subtle')); const detail=document.createElement('div');detail.className='timeline-point';detail.append(text('strong',`${point.status} · Rank ${point.rank??'—'}`),text('div',`Score ${number(point.discovery_score)} · Fundamental confidence ${number(point.fundamental_confidence)}% · ${point.fundamental_data_quality??'unknown quality'}`,'subtle'));timeline.append(detail); } body.append(timeline); $('tickerDialog').showModal();
+      }catch(error){notify(error.message);} }
+    $('refreshButton').addEventListener('click',()=>loadCandidates().catch(error=>notify(error.message))); $('searchFilter').addEventListener('keydown',event=>{if(event.key==='Enter') $('refreshButton').click();});
+    $('candidateRows').addEventListener('click',event=>{const row=event.target.closest('tr[data-ticker]');if(row)openTicker(row.dataset.ticker);}); $('closeDialog').addEventListener('click',()=>$('tickerDialog').close());
+    Promise.all([loadOverview()]).then(loadCandidates).catch(error=>notify(error.message)); loadWeekly().catch(error=>notify(error.message));
+  </script>
+</body>
+</html>

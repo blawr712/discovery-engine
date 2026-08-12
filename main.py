@@ -51,6 +51,7 @@ from src.history_reporting import (
     export_ticker_history,
     export_weekly_report,
 )
+from src.dashboard import run_dashboard
 from src.cli import parse_args, select_universe
 from src.config import (
     BENCHMARKS,
@@ -114,6 +115,12 @@ def main(arguments=None):
         return
     if args.weekly_report:
         generate_weekly_history_report()
+        return
+    if args.dashboard:
+        try:
+            run_dashboard(HISTORY_DATABASE, port=args.dashboard_port)
+        except (FileNotFoundError, OSError, ValueError, sqlite3.Error) as error:
+            raise SystemExit(f"Unable to start history dashboard: {error}") from error
         return
     if args.recalibrate_run:
         recalibrate_saved_run(args.recalibrate_run)

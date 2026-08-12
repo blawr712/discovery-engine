@@ -8,6 +8,8 @@ import json
 from pathlib import Path
 import sqlite3
 
+from src.history import connect_history_read_only
+
 
 COMPARISON_FIELDS = (
     "ticker", "country", "sector", "exchange", "presence", "change_types",
@@ -26,7 +28,7 @@ def compare_indexed_runs(database_path: Path, old_run_id: str, new_run_id: str) 
     path = Path(database_path)
     if not path.is_file():
         raise FileNotFoundError(f"History database not found: {path}")
-    with closing(sqlite3.connect(path)) as connection:
+    with closing(connect_history_read_only(path)) as connection:
         old = _load_run(connection, old_run_id)
         new = _load_run(connection, new_run_id)
 

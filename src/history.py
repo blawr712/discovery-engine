@@ -14,6 +14,14 @@ from src.run_state import load_saved_run
 SCHEMA_VERSION = 1
 
 
+def connect_history_read_only(database_path: Path) -> sqlite3.Connection:
+    """Open an existing history database with SQLite write access disabled."""
+    path = Path(database_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"History database not found: {path}")
+    return sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+
+
 def index_saved_run(database_path: Path, run_directory: Path, run_id: str) -> dict:
     """Idempotently index one completed file-backed run."""
     manifest, results = load_saved_run(run_directory, run_id)
@@ -74,8 +82,7 @@ def history_summary(database_path: Path) -> dict:
     path = Path(database_path)
     if not path.is_file():
         return {"run_count": 0, "result_count": 0, "latest_run": None}
-    with closing(sqlite3.connect(path)) as connection, connection:
-        _initialize(connection)
+    with closing(connect_history_read_only(path)) as connection:
         run_count = connection.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
         result_count = connection.execute("SELECT COUNT(*) FROM results").fetchone()[0]
         latest = connection.execute(

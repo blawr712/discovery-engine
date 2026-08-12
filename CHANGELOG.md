@@ -12,6 +12,9 @@
 - Added offline per-ticker timelines across indexed run history
 - Added automatic weekly Markdown briefings from the latest comparable runs
 - Added compatibility warnings for strategy/configuration fingerprint changes
+- Added a loopback-only, dependency-free historical intelligence dashboard
+- Added enforced read-only SQLite connections for all history query surfaces
+- Added interactive candidate filters, ticker timelines, and weekly movers
 
 ## v0.3.0 Intelligence — 2026-08-09
 

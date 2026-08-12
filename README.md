@@ -58,6 +58,16 @@ python main.py --weekly-report
 Weekly reports explicitly warn when run fingerprints differ, because rank and
 score movements may then include configuration changes as well as market data.
 
+Launch the local read-only dashboard:
+
+```powershell
+python main.py --dashboard
+```
+
+Then open `http://127.0.0.1:8765`. Use `--dashboard-port PORT` to choose a
+different loopback port. The dashboard is self-contained, makes no provider
+calls, and opens the history database with SQLite write access disabled.
+
 ## Core Principles
 
 - Discovery over prediction
