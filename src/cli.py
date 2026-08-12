@@ -60,6 +60,12 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="show the local offline history database summary",
     )
+    selection.add_argument(
+        "--compare-runs",
+        nargs=2,
+        metavar=("OLDER_RUN_ID", "NEWER_RUN_ID"),
+        help="compare two completed runs in the local history database",
+    )
     parser.add_argument(
         "--top",
         type=_positive_integer,

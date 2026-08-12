@@ -154,6 +154,13 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--history-summary", "--index-run", "run-123"])
 
+    def test_compare_runs_accepts_two_ids_and_is_exclusive(self):
+        args = parse_args(["--compare-runs", "old-run", "new-run"])
+
+        self.assertEqual(args.compare_runs, ["old-run", "new-run"])
+        with self.assertRaises(SystemExit):
+            parse_args(["--compare-runs", "old-run", "new-run", "--limit", "2"])
+
 
 if __name__ == "__main__":
     unittest.main()

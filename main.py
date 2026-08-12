@@ -44,6 +44,7 @@ from src.evidence import (
 from src.openai_research import OpenAIResearchProvider
 from src.research_audit import export_research_audit, finalize_research_review
 from src.history import history_summary, index_saved_run
+from src.history_comparison import compare_indexed_runs, export_run_comparison
 from src.cli import parse_args, select_universe
 from src.config import (
     BENCHMARKS,
@@ -98,6 +99,9 @@ def main(arguments=None):
         return
     if args.history_summary:
         print_history_summary()
+        return
+    if args.compare_runs:
+        compare_history_runs(*args.compare_runs)
         return
     if args.recalibrate_run:
         recalibrate_saved_run(args.recalibrate_run)
@@ -271,6 +275,25 @@ def print_history_summary() -> None:
     print(f"Indexed results: {result['result_count']}")
     if result["latest_run"]:
         print(f"Latest run: {result['latest_run']['run_id']}")
+
+
+def compare_history_runs(old_run_id: str, new_run_id: str) -> None:
+    try:
+        result = compare_indexed_runs(HISTORY_DATABASE, old_run_id, new_run_id)
+        csv_path, json_path = export_run_comparison(result, OUTPUT_DIR)
+    except (FileNotFoundError, OSError, ValueError, sqlite3.Error) as error:
+        raise SystemExit(f"Unable to compare indexed runs: {error}") from error
+    summary = result["summary"]
+    print(f"History comparison complete: {old_run_id} -> {new_run_id}")
+    print(f"Entrants: {summary['entrants']}")
+    print(f"Exits: {summary['exits']}")
+    print(f"Retained: {summary['retained']}")
+    print(f"Status transitions: {summary['status_transitions']}")
+    print(f"Rank changes: {summary['rank_changes']}")
+    print(f"Score changes: {summary['score_changes']}")
+    print(f"Data-quality changes: {summary['data_quality_changes']}")
+    print(f"Comparison CSV saved to: {csv_path}")
+    print(f"Comparison JSON saved to: {json_path}")
 
 
 def export_intelligence_artifacts(results: list[dict], run_id: str) -> dict:

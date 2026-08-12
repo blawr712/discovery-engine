@@ -5,6 +5,10 @@
 - Added an idempotent offline SQLite index for completed manifests and results
 - Added exclusive `--index-run` and `--history-summary` commands
 - Kept existing run files authoritative while establishing a queryable history layer
+- Added offline two-run comparison with presence, status, rank, score,
+  confidence, and data-quality change classification
+- Added deterministic JSON and CSV history-comparison reports
+- Added status-transition matrices and country/sector composition deltas
 
 ## v0.3.0 Intelligence — 2026-08-09
 

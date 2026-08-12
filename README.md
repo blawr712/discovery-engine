@@ -30,6 +30,18 @@ python main.py --index-run RUN_ID
 python main.py --history-summary
 ```
 
+Compare two previously indexed runs without making provider calls:
+
+```powershell
+python main.py --compare-runs OLDER_RUN_ID NEWER_RUN_ID
+```
+
+The comparison writes JSON and CSV reports under `data/exports/`, including
+entrants, exits, status transitions, score changes, candidate rank movement,
+confidence changes, and fundamental data-quality changes.
+The JSON report also includes a status-transition matrix and country/sector
+composition deltas.
+
 ## Core Principles
 
 - Discovery over prediction
