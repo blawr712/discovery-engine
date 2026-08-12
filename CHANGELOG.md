@@ -9,6 +9,9 @@
   confidence, and data-quality change classification
 - Added deterministic JSON and CSV history-comparison reports
 - Added status-transition matrices and country/sector composition deltas
+- Added offline per-ticker timelines across indexed run history
+- Added automatic weekly Markdown briefings from the latest comparable runs
+- Added compatibility warnings for strategy/configuration fingerprint changes
 
 ## v0.3.0 Intelligence — 2026-08-09
 

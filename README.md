@@ -42,6 +42,22 @@ confidence changes, and fundamental data-quality changes.
 The JSON report also includes a status-transition matrix and country/sector
 composition deltas.
 
+Export one ticker's complete indexed timeline:
+
+```powershell
+python main.py --ticker-history TICKER
+```
+
+Build a Markdown weekly briefing from the latest complete runs with matching
+universe sizes:
+
+```powershell
+python main.py --weekly-report
+```
+
+Weekly reports explicitly warn when run fingerprints differ, because rank and
+score movements may then include configuration changes as well as market data.
+
 ## Core Principles
 
 - Discovery over prediction

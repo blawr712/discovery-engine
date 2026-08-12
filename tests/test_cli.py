@@ -161,6 +161,15 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--compare-runs", "old-run", "new-run", "--limit", "2"])
 
+    def test_history_reporting_actions_are_exclusive(self):
+        ticker = parse_args(["--ticker-history", "abc.to"])
+        weekly = parse_args(["--weekly-report"])
+
+        self.assertEqual(ticker.ticker_history, "abc.to")
+        self.assertTrue(weekly.weekly_report)
+        with self.assertRaises(SystemExit):
+            parse_args(["--weekly-report", "--history-summary"])
+
 
 if __name__ == "__main__":
     unittest.main()

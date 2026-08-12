@@ -67,14 +67,16 @@ def compare_indexed_runs(database_path: Path, old_run_id: str, new_run_id: str) 
 
 
 def export_run_comparison(
-    comparison: dict, output_directory: Path
+    comparison: dict,
+    output_directory: Path,
+    report_prefix: str = "history_comparison",
 ) -> tuple[Path, Path]:
     """Export full machine-readable JSON and flat review-ready CSV reports."""
     output_directory = Path(output_directory)
     output_directory.mkdir(parents=True, exist_ok=True)
     report_id = f"{comparison['old_run_id']}_to_{comparison['new_run_id']}"
-    json_path = output_directory / f"history_comparison_{report_id}.json"
-    csv_path = output_directory / f"history_comparison_{report_id}.csv"
+    json_path = output_directory / f"{report_prefix}_{report_id}.json"
+    csv_path = output_directory / f"{report_prefix}_{report_id}.csv"
     with open(json_path, "w", encoding="utf-8") as handle:
         json.dump(comparison, handle, indent=2, sort_keys=True)
     with open(csv_path, "w", encoding="utf-8", newline="") as handle:

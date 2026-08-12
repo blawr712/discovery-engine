@@ -66,6 +66,16 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         metavar=("OLDER_RUN_ID", "NEWER_RUN_ID"),
         help="compare two completed runs in the local history database",
     )
+    selection.add_argument(
+        "--ticker-history",
+        metavar="TICKER",
+        help="export one ticker's timeline across all indexed runs",
+    )
+    selection.add_argument(
+        "--weekly-report",
+        action="store_true",
+        help="compare the latest compatible indexed runs and export a briefing",
+    )
     parser.add_argument(
         "--top",
         type=_positive_integer,

@@ -45,6 +45,12 @@ from src.openai_research import OpenAIResearchProvider
 from src.research_audit import export_research_audit, finalize_research_review
 from src.history import history_summary, index_saved_run
 from src.history_comparison import compare_indexed_runs, export_run_comparison
+from src.history_reporting import (
+    build_ticker_history,
+    build_weekly_report,
+    export_ticker_history,
+    export_weekly_report,
+)
 from src.cli import parse_args, select_universe
 from src.config import (
     BENCHMARKS,
@@ -102,6 +108,12 @@ def main(arguments=None):
         return
     if args.compare_runs:
         compare_history_runs(*args.compare_runs)
+        return
+    if args.ticker_history:
+        export_history_timeline(args.ticker_history)
+        return
+    if args.weekly_report:
+        generate_weekly_history_report()
         return
     if args.recalibrate_run:
         recalibrate_saved_run(args.recalibrate_run)
@@ -292,6 +304,38 @@ def compare_history_runs(old_run_id: str, new_run_id: str) -> None:
     print(f"Rank changes: {summary['rank_changes']}")
     print(f"Score changes: {summary['score_changes']}")
     print(f"Data-quality changes: {summary['data_quality_changes']}")
+    print(f"Comparison CSV saved to: {csv_path}")
+    print(f"Comparison JSON saved to: {json_path}")
+
+
+def export_history_timeline(ticker: str) -> None:
+    try:
+        history = build_ticker_history(HISTORY_DATABASE, ticker)
+        csv_path, json_path = export_ticker_history(history, OUTPUT_DIR)
+    except (FileNotFoundError, OSError, ValueError, sqlite3.Error) as error:
+        raise SystemExit(f"Unable to build ticker history: {error}") from error
+    print(f"Ticker history complete: {history['ticker']}")
+    print(f"Indexed appearances: {history['appearances']}")
+    print(f"Best rank: {history['best_rank']}")
+    print(f"Worst rank: {history['worst_rank']}")
+    print(f"Timeline CSV saved to: {csv_path}")
+    print(f"Timeline JSON saved to: {json_path}")
+
+
+def generate_weekly_history_report() -> None:
+    try:
+        report = build_weekly_report(HISTORY_DATABASE)
+        markdown_path, csv_path, json_path = export_weekly_report(report, OUTPUT_DIR)
+    except (FileNotFoundError, OSError, ValueError, sqlite3.Error) as error:
+        raise SystemExit(f"Unable to build weekly history report: {error}") from error
+    print(
+        f"Weekly history report complete: {report['old_run_id']} -> "
+        f"{report['new_run_id']}"
+    )
+    print(f"Compatibility: {report['compatibility']['classification']}")
+    print(f"Promotions to OK: {len(report['promotions_to_ok'])}")
+    print(f"Demotions from OK: {len(report['demotions_from_ok'])}")
+    print(f"Markdown briefing saved to: {markdown_path}")
     print(f"Comparison CSV saved to: {csv_path}")
     print(f"Comparison JSON saved to: {json_path}")
 
