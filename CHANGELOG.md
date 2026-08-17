@@ -15,6 +15,9 @@
 - Added a loopback-only, dependency-free historical intelligence dashboard
 - Added enforced read-only SQLite connections for all history query surfaces
 - Added interactive candidate filters, ticker timelines, and weekly movers
+- Added within-run score percentiles and plain-language standing descriptors
+- Added score and confidence definitions that distinguish signals from forecasts
+- Added technical and fundamental factor explanations to candidate details
 
 ## v0.3.0 Intelligence — 2026-08-09
 

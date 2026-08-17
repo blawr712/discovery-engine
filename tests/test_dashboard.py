@@ -29,12 +29,16 @@ class DashboardTests(unittest.TestCase):
             overview = store.overview()
             candidates = store.candidates(new_id, status="OK", country="US")
             timeline = store.ticker_history("aaa")
+            detail = store.candidate_detail("aaa", new_id)
             weekly = store.weekly_report()
 
             self.assertEqual(overview["run_count"], 2)
             self.assertEqual(overview["result_count"], 4)
             self.assertEqual(candidates["rows"][0]["ticker"], "AAA")
             self.assertEqual(timeline["appearances"], 2)
+            self.assertEqual(detail["candidate"]["scores"]["discovery"]["value"], 80)
+            self.assertEqual(detail["candidate"]["scores"]["discovery"]["descriptor"], "Top tier")
+            self.assertIn("discovery_score", detail["glossary"])
             self.assertEqual(weekly["promotions_to_ok"][0]["ticker"], "AAA")
             self.assertNotIn("rows", weekly)
 
@@ -43,6 +47,7 @@ class DashboardTests(unittest.TestCase):
 
         self.assertIn("Discovery history", html)
         self.assertIn("/api/candidates", html)
+        self.assertIn("/api/candidate/", html)
         self.assertNotIn("https://", html)
 
     @staticmethod

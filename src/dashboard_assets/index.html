@@ -48,10 +48,19 @@
     .close { width:36px; padding:0; border-radius:50%; }
     .timeline { display:grid; grid-template-columns:150px 1fr; gap:12px 20px; margin-top:18px; }
     .timeline-point { border-left:3px solid var(--lime); padding-left:13px; }
+    .score-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:18px 0; }
+    .score-card { padding:14px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+    .score-card strong { display:block; margin:3px 0; font:600 24px Georgia,serif; }
+    .factor-columns { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:20px; }
+    .factor { padding:10px 0; border-bottom:1px solid #e8e4db; }
+    .factor-head { display:flex; justify-content:space-between; gap:10px; font-weight:700; }
+    .factor-track { height:6px; margin:7px 0; overflow:hidden; border-radius:8px; background:#e6e3d9; }
+    .factor-fill { height:100%; background:linear-gradient(90deg,var(--green),var(--lime)); }
+    .interpretation { margin:14px 0; padding:11px 13px; border-left:3px solid var(--gold); background:#fbf2d9; color:#5c4a23; }
     .empty { padding:30px; text-align:center; color:var(--muted); }
     #status { position:fixed; right:18px; bottom:18px; background:var(--ink); color:#fff; padding:10px 14px; border-radius:8px; opacity:0; pointer-events:none; transition:.2s; }
     #status.show { opacity:1; }
-    @media(max-width:900px) { .metrics{grid-template-columns:repeat(2,1fr)} .weekly-grid{grid-template-columns:1fr} .panel-head{align-items:flex-start;flex-direction:column} }
+    @media(max-width:900px) { .metrics{grid-template-columns:repeat(2,1fr)} .weekly-grid,.factor-columns{grid-template-columns:1fr} .score-grid{grid-template-columns:1fr 1fr} .panel-head{align-items:flex-start;flex-direction:column} }
     @media(max-width:520px) { .metrics{grid-template-columns:1fr 1fr} .metric strong{font-size:22px} input,select{width:100%} .timeline{grid-template-columns:1fr} }
   </style>
 </head>
@@ -74,7 +83,7 @@
           <button id="refreshButton">Apply</button>
         </div>
       </div>
-      <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Ticker</th><th>Company</th><th>Status</th><th>Score</th><th>Score conf.</th><th>Fund. conf.</th><th>Quality</th><th>Country</th><th>Sector</th></tr></thead><tbody id="candidateRows"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Ticker</th><th>Company</th><th>Status</th><th>Score</th><th>Standing</th><th>Score conf.</th><th>Fund. conf.</th><th>Quality</th><th>Country</th><th>Sector</th></tr></thead><tbody id="candidateRows"></tbody></table></div>
     </section>
     <section class="panel">
       <div class="panel-head"><div><h2>Latest comparable change report</h2><div class="subtle" id="weeklyRange">Loading report…</div></div></div>
@@ -106,10 +115,10 @@
       const data=await api('/api/candidates?'+params); $('tableSummary').textContent=`Showing ${data.rows.length} of ${number(data.total)} matches · click a company for its timeline`;
       const body=$('candidateRows'); body.replaceChildren();
       for(const row of data.rows){ const tr=document.createElement('tr'); tr.dataset.ticker=row.ticker;
-        [row.rank,row.ticker,row.company_name,row.status,number(row.discovery_score),number(row.score_confidence),number(row.fundamental_confidence),row.fundamental_data_quality,row.country,row.sector].forEach((value,index)=>tr.append(text('td',value,index===1?'ticker':'')));
+        [row.rank,row.ticker,row.company_name,row.status,number(row.discovery_score),row.discovery_descriptor,number(row.score_confidence),number(row.fundamental_confidence),row.fundamental_data_quality,row.country,row.sector].forEach((value,index)=>tr.append(text('td',value,index===1?'ticker':'')));
         body.append(tr);
       }
-      if(!data.rows.length){ const tr=document.createElement('tr'); const td=text('td','No candidates match these filters.','empty'); td.colSpan=10; tr.append(td); body.append(tr); }
+      if(!data.rows.length){ const tr=document.createElement('tr'); const td=text('td','No candidates match these filters.','empty'); td.colSpan=11; tr.append(td); body.append(tr); }
     }
     function movements(target,rows,positive){ const root=$(target); root.replaceChildren(); for(const row of rows.slice(0,7)){ const line=document.createElement('div'); line.className='movement'; line.append(text('span',row.ticker,'ticker'),text('span',`${row.old_rank} → ${row.new_rank} (${row.rank_change>0?'+':''}${row.rank_change})`,positive?'positive':'negative')); root.append(line); } }
     async function loadWeekly(){ const data=await api('/api/weekly'); $('weeklyRange').textContent=`${date(data.compatibility.old_completed_at)} → ${date(data.compatibility.new_completed_at)} · ${data.compatibility.classification.replaceAll('_',' ')}`;
@@ -117,9 +126,12 @@
       movements('rankGains',data.biggest_rank_gains,true); movements('rankDeclines',data.biggest_rank_declines,false);
       const warning=$('compatibilityWarning'); warning.replaceChildren(); for(const item of data.compatibility.warnings){warning.append(text('div',item,'warning'));}
     }
-    async function openTicker(ticker){ try{ const data=await api('/api/ticker/'+encodeURIComponent(ticker)); $('dialogTitle').textContent=`${ticker} · ${data.appearances} appearances`; const body=$('dialogBody'); body.replaceChildren();
-      const summary=text('div',`Best rank ${data.best_rank??'—'} · Worst rank ${data.worst_rank??'—'} · ${data.status_transition_count} status transitions`,'subtle'); body.append(summary); const timeline=document.createElement('div'); timeline.className='timeline';
-      for(const point of data.timeline){ timeline.append(text('div',date(point.completed_at),'subtle')); const detail=document.createElement('div');detail.className='timeline-point';detail.append(text('strong',`${point.status} · Rank ${point.rank??'—'}`),text('div',`Score ${number(point.discovery_score)} · Fundamental confidence ${number(point.fundamental_confidence)}% · ${point.fundamental_data_quality??'unknown quality'}`,'subtle'));timeline.append(detail); } body.append(timeline); $('tickerDialog').showModal();
+    function scoreCard(label,card){ const root=document.createElement('div');root.className='score-card';root.append(text('span',label,'subtle'),text('strong',card.value==null?'—':number(card.value)),text('div',card.descriptor,'badge'));if(card.percentile!=null)root.append(text('div',`${number(card.percentile)}th percentile`,'subtle'));root.append(text('div',card.definition,'subtle'));return root; }
+    function factorList(title,rows){ const section=document.createElement('section');section.append(text('h3',title));if(!rows.length){section.append(text('div','No factor breakdown is available.','subtle'));return section;} for(const factor of rows){const item=document.createElement('div');item.className='factor';const head=document.createElement('div');head.className='factor-head';head.append(text('span',factor.label),text('span',`${number(factor.points)} / ${number(factor.max_points)}`));const track=document.createElement('div');track.className='factor-track';const fill=document.createElement('div');fill.className='factor-fill';fill.style.width=`${factor.max_points?Math.max(0,Math.min(100,factor.points/factor.max_points*100)):0}%`;track.append(fill);item.append(head,track,text('div',factor.explanation,'subtle'));section.append(item);}return section; }
+    async function openTicker(ticker){ try{ const params=new URLSearchParams({run_id:$('runSelect').value}); const data=await api('/api/candidate/'+encodeURIComponent(ticker)+'?'+params); const candidate=data.candidate, history=data.history; $('dialogTitle').textContent=`${ticker} · ${candidate.company_name??'Unknown company'}`; const body=$('dialogBody'); body.replaceChildren();
+      body.append(text('div',`${candidate.status_explanation} Rank ${candidate.rank??'—'} in the selected run.`,'subtle'));const scores=document.createElement('div');scores.className='score-grid';scores.append(scoreCard('Discovery score',candidate.scores.discovery),scoreCard('Fundamental score',candidate.scores.fundamental),scoreCard('Technical confidence',candidate.confidence.technical),scoreCard('Fundamental confidence',candidate.confidence.fundamental));body.append(scores,text('div',candidate.interpretation_warning,'interpretation'));
+      const factors=document.createElement('div');factors.className='factor-columns';factors.append(factorList('Technical factors',candidate.technical_factors),factorList('Fundamental factors',candidate.fundamental_factors));body.append(factors,text('h3','Indexed score timeline'));const summary=text('div',`Best rank ${history.best_rank??'—'} · Worst rank ${history.worst_rank??'—'} · ${history.status_transition_count} status transitions`,'subtle'); body.append(summary); const timeline=document.createElement('div'); timeline.className='timeline';
+      for(const point of history.timeline){ timeline.append(text('div',date(point.completed_at),'subtle')); const detail=document.createElement('div');detail.className='timeline-point';detail.append(text('strong',`${point.status} · Rank ${point.rank??'—'}`),text('div',`Score ${number(point.discovery_score)} · Fundamental confidence ${number(point.fundamental_confidence)}% · ${point.fundamental_data_quality??'unknown quality'}`,'subtle'));timeline.append(detail); } body.append(timeline); $('tickerDialog').showModal();
       }catch(error){notify(error.message);} }
     $('refreshButton').addEventListener('click',()=>loadCandidates().catch(error=>notify(error.message))); $('searchFilter').addEventListener('keydown',event=>{if(event.key==='Enter') $('refreshButton').click();});
     $('candidateRows').addEventListener('click',event=>{const row=event.target.closest('tr[data-ticker]');if(row)openTicker(row.dataset.ticker);}); $('closeDialog').addEventListener('click',()=>$('tickerDialog').close());

@@ -11,6 +11,12 @@ from urllib.parse import parse_qs, unquote, urlparse
 from src.history import connect_history_read_only
 from src.history_comparison import _candidate_ranks
 from src.history_reporting import build_ticker_history, build_weekly_report
+from src.score_explainability import (
+    SCORE_GLOSSARY,
+    explain_candidate,
+    percentile_descriptor,
+    score_percentiles,
+)
 
 
 DASHBOARD_HTML = Path(__file__).with_name("dashboard_assets") / "index.html"
@@ -74,6 +80,7 @@ class DashboardStore:
             ).fetchall()
         all_rows = [json.loads(payload) for payload, in payloads]
         ranks = _candidate_ranks({str(row.get("ticker")): row for row in all_rows})
+        discovery_percentiles = score_percentiles(all_rows, "discovery_score")
         normalized_status = status.strip().upper() if status else ""
         normalized_country = country.strip().upper() if country else ""
         needle = search.strip().upper() if search else ""
@@ -92,6 +99,10 @@ class DashboardStore:
                 "company_name": company or None,
                 "status": row.get("status"),
                 "rank": ranks.get(ticker),
+                "discovery_percentile": discovery_percentiles.get(ticker),
+                "discovery_descriptor": percentile_descriptor(
+                    discovery_percentiles.get(ticker)
+                ),
                 "discovery_score": row.get("discovery_score"),
                 "score_confidence": row.get("score_confidence"),
                 "fundamental_confidence": row.get("fundamental_confidence"),
@@ -109,6 +120,40 @@ class DashboardStore:
 
     def ticker_history(self, ticker: str) -> dict:
         return build_ticker_history(self.database_path, ticker)
+
+    def candidate_detail(self, ticker: str, run_id: str | None = None) -> dict:
+        ticker = str(ticker).strip().upper()
+        with closing(connect_history_read_only(self.database_path)) as connection:
+            if not run_id:
+                latest = connection.execute(
+                    "SELECT run_id FROM runs ORDER BY completed_at DESC, run_id DESC LIMIT 1"
+                ).fetchone()
+                if latest is None:
+                    raise ValueError("No indexed runs are available")
+                run_id = latest[0]
+            payloads = connection.execute(
+                "SELECT result_json FROM results WHERE run_id = ? ORDER BY position",
+                (run_id,),
+            ).fetchall()
+        rows = [json.loads(payload) for payload, in payloads]
+        lookup = {str(row.get("ticker", "")).upper(): row for row in rows}
+        row = lookup.get(ticker)
+        if row is None:
+            raise ValueError(f"Ticker is not present in indexed run {run_id}: {ticker}")
+        ranks = _candidate_ranks({str(item.get("ticker")): item for item in rows})
+        discovery = score_percentiles(rows, "discovery_score")
+        fundamental = score_percentiles(rows, "fundamental_score_normalized")
+        return {
+            "run_id": run_id,
+            "candidate": explain_candidate(
+                row,
+                ranks.get(str(row.get("ticker"))),
+                discovery.get(str(row.get("ticker"))),
+                fundamental.get(str(row.get("ticker"))),
+            ),
+            "history": self.ticker_history(ticker),
+            "glossary": SCORE_GLOSSARY,
+        }
 
     def weekly_report(self) -> dict:
         report = build_weekly_report(self.database_path)
@@ -149,6 +194,11 @@ def create_dashboard_server(
                 elif parsed.path.startswith("/api/ticker/"):
                     ticker = unquote(parsed.path.removeprefix("/api/ticker/"))
                     self._json(200, store.ticker_history(ticker))
+                elif parsed.path.startswith("/api/candidate/"):
+                    ticker = unquote(parsed.path.removeprefix("/api/candidate/"))
+                    self._json(200, store.candidate_detail(
+                        ticker, run_id=_one(query, "run_id")
+                    ))
                 elif parsed.path == "/api/weekly":
                     self._json(200, store.weekly_report())
                 else:

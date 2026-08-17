@@ -68,6 +68,12 @@ Then open `http://127.0.0.1:8765`. Use `--dashboard-port PORT` to choose a
 different loopback port. The dashboard is self-contained, makes no provider
 calls, and opens the history database with SQLite write access disabled.
 
+Candidate details explain how each stored score was constructed. Discovery and
+Fundamental Scores receive within-run percentile descriptors, while technical
+and fundamental confidence are described separately as data coverage. Factor
+points, maximums, source explanations, data quality, and status reasons remain
+visible; none of these fields are presented as a return forecast or recommendation.
+
 ## Core Principles
 
 - Discovery over prediction
