@@ -17,6 +17,9 @@ from src.score_explainability import (
     percentile_descriptor,
     score_percentiles,
 )
+from src.config import BENCHMARKS
+from src.price_performance import build_price_performance
+from src.price_snapshots import load_price_snapshot
 
 
 DASHBOARD_HTML = Path(__file__).with_name("dashboard_assets") / "index.html"
@@ -143,6 +146,16 @@ class DashboardStore:
         ranks = _candidate_ranks({str(item.get("ticker")): item for item in rows})
         discovery = score_percentiles(rows, "discovery_score")
         fundamental = score_percentiles(rows, "fundamental_score_normalized")
+        with closing(connect_history_read_only(self.database_path)) as connection:
+            equity_snapshot = load_price_snapshot(connection, run_id, ticker)
+            benchmark_ticker = BENCHMARKS.get(str(row.get("country") or ""))
+            benchmark_snapshot = (
+                load_price_snapshot(connection, run_id, benchmark_ticker)
+                if benchmark_ticker else None
+            )
+        performance = build_price_performance(equity_snapshot, benchmark_snapshot)
+        if performance is not None:
+            performance["currency"] = row.get("currency")
         return {
             "run_id": run_id,
             "candidate": explain_candidate(
@@ -153,6 +166,7 @@ class DashboardStore:
             ),
             "history": self.ticker_history(ticker),
             "glossary": SCORE_GLOSSARY,
+            "price_performance": performance,
         }
 
     def weekly_report(self) -> dict:

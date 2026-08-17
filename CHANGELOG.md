@@ -18,6 +18,14 @@
 - Added within-run score percentiles and plain-language standing descriptors
 - Added score and confidence definitions that distinguish signals from forecasts
 - Added technical and fundamental factor explanations to candidate details
+- Added compressed run-linked price and benchmark snapshots with provenance gates
+- Added offline period-return and benchmark-relative performance calculations
+- Added interactive 1M/3M/6M/1Y candidate price charts
+- Changed the local dashboard to a responsive dark visual theme
+- Redesigned price charts with actual-price and benchmark-comparison modes,
+  date axes, range controls, and hover values
+- Added possible corporate-action detection and suppression of contaminated returns
+- Added plain-language SPY and XIU.TO benchmark definitions
 
 ## v0.3.0 Intelligence — 2026-08-09
 

@@ -5,16 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Discovery Engine · History</title>
   <style>
-    :root { --ink:#13251f; --muted:#64736d; --paper:#f4f1e9; --card:#fffdf7; --line:#d9d5ca; --green:#164f3d; --lime:#b9dc72; --rust:#b85536; --gold:#d9a441; }
+    :root { color-scheme:dark; --ink:#e7f0ea; --muted:#91a49a; --paper:#07110d; --card:#101d17; --raised:#16261f; --line:#294238; --green:#7fd6aa; --lime:#b9dc72; --rust:#ff8b68; --gold:#e5b95c; }
     * { box-sizing:border-box; }
-    body { margin:0; color:var(--ink); background:radial-gradient(circle at 90% 0,#dce8ca 0,transparent 28rem),var(--paper); font:14px/1.5 Inter,Segoe UI,sans-serif; }
+    body { margin:0; color:var(--ink); background:radial-gradient(circle at 90% 0,#193a2c 0,transparent 30rem),var(--paper); font:14px/1.5 Inter,Segoe UI,sans-serif; }
     header { padding:32px clamp(20px,5vw,72px) 24px; border-bottom:1px solid var(--line); }
     .eyebrow { color:var(--green); font-size:11px; font-weight:800; letter-spacing:.18em; text-transform:uppercase; }
     h1 { margin:6px 0 2px; font:600 clamp(30px,4vw,52px)/1.05 Georgia,serif; letter-spacing:-.035em; }
     header p { margin:8px 0 0; color:var(--muted); }
     main { max-width:1440px; margin:auto; padding:28px clamp(20px,5vw,72px) 60px; }
     .metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:26px; }
-    .metric,.panel { background:color-mix(in srgb,var(--card) 94%,transparent); border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 30px #243d3020; }
+    .metric,.panel { background:color-mix(in srgb,var(--card) 95%,transparent); border:1px solid var(--line); border-radius:14px; box-shadow:0 16px 40px #0007; }
     .metric { padding:18px; }
     .metric span { display:block; color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
     .metric strong { display:block; margin-top:4px; font:600 28px Georgia,serif; }
@@ -24,43 +24,52 @@
     h3 { margin:0 0 10px; font:600 17px Georgia,serif; }
     .subtle { color:var(--muted); font-size:12px; }
     .filters { display:flex; flex-wrap:wrap; gap:8px; }
-    input,select,button { height:38px; border:1px solid var(--line); border-radius:8px; padding:0 11px; background:#fff; color:var(--ink); font:inherit; }
+    input,select,button { height:38px; border:1px solid var(--line); border-radius:8px; padding:0 11px; background:var(--raised); color:var(--ink); font:inherit; }
     input { min-width:190px; }
     button { cursor:pointer; background:var(--green); border-color:var(--green); color:#fff; font-weight:700; }
     button:hover { background:#0c3b2d; }
     .table-wrap { overflow:auto; max-height:560px; }
     table { width:100%; border-collapse:collapse; white-space:nowrap; }
     th { position:sticky; top:0; z-index:1; background:var(--card); color:var(--muted); text-align:left; font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
-    th,td { padding:11px 10px; border-bottom:1px solid #e8e4db; }
+    th,td { padding:11px 10px; border-bottom:1px solid var(--line); }
     tbody tr { cursor:pointer; }
-    tbody tr:hover { background:#edf3e4; }
+    tbody tr:hover { background:#1b3026; }
     .ticker { color:var(--green); font-weight:800; }
-    .badge { display:inline-block; padding:2px 7px; border-radius:20px; background:#e5eed6; color:var(--green); font-size:11px; font-weight:700; }
+    .badge { display:inline-block; padding:2px 7px; border-radius:20px; background:#213d2f; color:var(--green); font-size:11px; font-weight:700; }
     .weekly-grid { display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:14px; }
-    .weekly-card { padding:15px; border:1px solid var(--line); border-radius:10px; background:#fff; }
-    .warning { color:#7b3c26; background:#f9e8d8; border-left:3px solid var(--rust); padding:9px 11px; margin-top:10px; }
-    .movement { display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid #eee9df; }
+    .weekly-card { padding:15px; border:1px solid var(--line); border-radius:10px; background:var(--raised); }
+    .warning { color:#ffc1ac; background:#3c2119; border-left:3px solid var(--rust); padding:9px 11px; margin-top:10px; }
+    .movement { display:flex; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); }
     .positive { color:var(--green); font-weight:800; } .negative { color:var(--rust); font-weight:800; }
     dialog { width:min(880px,calc(100vw - 32px)); border:0; border-radius:16px; padding:0; background:var(--card); box-shadow:0 30px 90px #12261e66; }
-    dialog::backdrop { background:#14251f99; backdrop-filter:blur(3px); }
+    dialog::backdrop { background:#020806cc; backdrop-filter:blur(4px); }
     .dialog-head { display:flex; justify-content:space-between; padding:22px; border-bottom:1px solid var(--line); }
     .dialog-body { padding:22px; }
     .close { width:36px; padding:0; border-radius:50%; }
     .timeline { display:grid; grid-template-columns:150px 1fr; gap:12px 20px; margin-top:18px; }
     .timeline-point { border-left:3px solid var(--lime); padding-left:13px; }
     .score-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:18px 0; }
-    .score-card { padding:14px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+    .score-card { padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--raised); }
     .score-card strong { display:block; margin:3px 0; font:600 24px Georgia,serif; }
     .factor-columns { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:20px; }
-    .factor { padding:10px 0; border-bottom:1px solid #e8e4db; }
+    .factor { padding:10px 0; border-bottom:1px solid var(--line); }
     .factor-head { display:flex; justify-content:space-between; gap:10px; font-weight:700; }
-    .factor-track { height:6px; margin:7px 0; overflow:hidden; border-radius:8px; background:#e6e3d9; }
+    .factor-track { height:6px; margin:7px 0; overflow:hidden; border-radius:8px; background:#293b34; }
     .factor-fill { height:100%; background:linear-gradient(90deg,var(--green),var(--lime)); }
-    .interpretation { margin:14px 0; padding:11px 13px; border-left:3px solid var(--gold); background:#fbf2d9; color:#5c4a23; }
+    .interpretation { margin:14px 0; padding:11px 13px; border-left:3px solid var(--gold); background:#362f1b; color:#f2d991; }
+    .return-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:12px 0; }
+    .return-card { padding:10px; border:1px solid var(--line); border-radius:8px; background:var(--raised); }
+    .return-card strong { display:block; font-size:18px; }
+    .chart-shell { margin:14px 0 22px; padding:14px; border:1px solid var(--line); border-radius:10px; background:#0b1712; }
+    .chart-controls { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+    .range-buttons { display:flex; gap:5px; } .range-buttons button { height:28px; padding:0 8px; font-size:11px; }
+    .chart-actions { display:flex; gap:12px; align-items:center; } .mode-buttons { display:flex; gap:5px; } .mode-buttons button { height:28px; padding:0 9px; font-size:11px; background:#213d2f; } .mode-buttons button.active,.range-buttons button.active { outline:2px solid var(--lime); }
+    .legend { display:flex; gap:15px; color:var(--muted); font-size:11px; } .legend i { display:inline-block; width:16px; height:2px; margin:0 5px 3px 0; background:var(--lime); } .legend i.benchmark { background:var(--gold); }
+    .price-chart { width:100%; height:260px; display:block; }
     .empty { padding:30px; text-align:center; color:var(--muted); }
     #status { position:fixed; right:18px; bottom:18px; background:var(--ink); color:#fff; padding:10px 14px; border-radius:8px; opacity:0; pointer-events:none; transition:.2s; }
     #status.show { opacity:1; }
-    @media(max-width:900px) { .metrics{grid-template-columns:repeat(2,1fr)} .weekly-grid,.factor-columns{grid-template-columns:1fr} .score-grid{grid-template-columns:1fr 1fr} .panel-head{align-items:flex-start;flex-direction:column} }
+    @media(max-width:900px) { .metrics{grid-template-columns:repeat(2,1fr)} .weekly-grid,.factor-columns{grid-template-columns:1fr} .score-grid{grid-template-columns:1fr 1fr} .return-grid{grid-template-columns:repeat(3,1fr)} .panel-head{align-items:flex-start;flex-direction:column} }
     @media(max-width:520px) { .metrics{grid-template-columns:1fr 1fr} .metric strong{font-size:22px} input,select{width:100%} .timeline{grid-template-columns:1fr} }
   </style>
 </head>
@@ -128,8 +137,24 @@
     }
     function scoreCard(label,card){ const root=document.createElement('div');root.className='score-card';root.append(text('span',label,'subtle'),text('strong',card.value==null?'—':number(card.value)),text('div',card.descriptor,'badge'));if(card.percentile!=null)root.append(text('div',`${number(card.percentile)}th percentile`,'subtle'));root.append(text('div',card.definition,'subtle'));return root; }
     function factorList(title,rows){ const section=document.createElement('section');section.append(text('h3',title));if(!rows.length){section.append(text('div','No factor breakdown is available.','subtle'));return section;} for(const factor of rows){const item=document.createElement('div');item.className='factor';const head=document.createElement('div');head.className='factor-head';head.append(text('span',factor.label),text('span',`${number(factor.points)} / ${number(factor.max_points)}`));const track=document.createElement('div');track.className='factor-track';const fill=document.createElement('div');fill.className='factor-fill';fill.style.width=`${factor.max_points?Math.max(0,Math.min(100,factor.points/factor.max_points*100)):0}%`;track.append(fill);item.append(head,track,text('div',factor.explanation,'subtle'));section.append(item);}return section; }
+    function performanceSection(perf){
+      const section=document.createElement('section');section.append(text('h3',`Price performance · ${perf.ticker}`));
+      if(perf.benchmark)section.append(text('div',`${perf.benchmark}: ${perf.benchmark_definition} “Vs benchmark” is the stock return minus the benchmark return, measured in percentage points.`,'subtle'));
+      const returns=document.createElement('div');returns.className='return-grid';for(const period of ['1W','1M','3M','6M','1Y']){const metric=perf.period_returns[period];const card=document.createElement('div');card.className='return-card';const value=metric?.ticker_return;card.append(text('span',period,'subtle'),text('strong',value==null?'—':`${value>=0?'+':''}${number(value)}%`,value>=0?'positive':'negative'),text('div',metric?.warning??(metric?.relative_return==null?'No benchmark comparison':`${metric.relative_return>=0?'+':''}${number(metric.relative_return)} percentage points vs ${perf.benchmark}`),'subtle'));returns.append(card);}section.append(returns,text('div',perf.interpretation,'interpretation'));
+      if(perf.anomalies?.length){const anomaly=perf.anomalies[0];section.append(text('div',`Possible split or corporate action on ${anomaly.date}: the stored adjusted close changed ${anomaly.change_percent>=0?'+':''}${number(anomaly.change_percent)}% in one session. Returns spanning this date are hidden until the adjustment is verified.`,'warning'));}
+      const shell=document.createElement('div');shell.className='chart-shell';const controls=document.createElement('div');controls.className='chart-controls';const legend=document.createElement('div');legend.className='legend';const actions=document.createElement('div');actions.className='chart-actions';const modes=document.createElement('div');modes.className='mode-buttons';const ranges=document.createElement('div');ranges.className='range-buttons';actions.append(modes,ranges);controls.append(legend,actions);const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 800 260');svg.classList.add('price-chart');shell.append(controls,svg);section.append(shell);
+      const state={mode:'price',days:365};const redraw=()=>{drawChart(svg,perf,state.days,state.mode);[...modes.children].forEach(button=>button.classList.toggle('active',button.dataset.mode===state.mode));[...ranges.children].forEach(button=>button.classList.toggle('active',Number(button.dataset.days)===state.days));legend.replaceChildren();const tickerLegend=document.createElement('span');const ti=document.createElement('i');tickerLegend.append(ti,document.createTextNode(state.mode==='price'?`${perf.ticker} adjusted close (${perf.currency??'currency unknown'})`:`${perf.ticker} % change`));legend.append(tickerLegend);if(state.mode==='compare'&&perf.benchmark){const benchmarkLegend=document.createElement('span');const bi=document.createElement('i');bi.className='benchmark';benchmarkLegend.append(bi,document.createTextNode(`${perf.benchmark} % change`));legend.append(benchmarkLegend);}};
+      for(const [label,mode] of [['Price','price'],['Compare %','compare']]){const button=text('button',label);button.dataset.mode=mode;button.addEventListener('click',()=>{state.mode=mode;redraw();});modes.append(button);}for(const [label,days] of Object.entries({'1M':30,'3M':91,'6M':182,'1Y':365})){const button=text('button',label);button.dataset.days=days;button.addEventListener('click',()=>{state.days=days;redraw();});ranges.append(button);}redraw();return section;
+    }
+    function drawChart(svg,perf,days,mode){
+      const cutoff=new Date(perf.end_date);cutoff.setDate(cutoff.getDate()-days);const select=series=>series.filter(point=>new Date(point.date)>=cutoff);let ticker=select(mode==='price'?perf.series.price:perf.series.ticker),benchmark=mode==='compare'?select(perf.series.benchmark):[];if(mode==='compare'){const rebase=series=>{if(!series.length)return [];const base=series[0].value;return series.map(point=>({...point,value:(point.value/base-1)*100}));};ticker=rebase(ticker);benchmark=rebase(benchmark);}const values=[...ticker,...benchmark].map(point=>point.value);svg.replaceChildren();if(values.length<2){const unavailable=svgElement('text',{fill:'#91a49a',x:40,y:130});unavailable.textContent='Chart data unavailable';svg.append(unavailable);return;}
+      const min=Math.min(...values),max=Math.max(...values),padding=(max-min||1)*.08,low=min-padding,high=max+padding,span=high-low;const x=(index,length)=>52+index/Math.max(1,length-1)*720;const y=value=>220-(value-low)/span*180;for(const value of [min,(min+max)/2,max]){svg.append(svgElement('line',{x1:52,x2:772,y1:y(value),y2:y(value),stroke:'#294238'}));const label=svgElement('text',{x:4,y:y(value)+4,fill:'#91a49a','font-size':11});label.textContent=mode==='price'?number(value):`${value>=0?'+':''}${number(value)}%`;svg.append(label);}const draw=(series,color,area=false)=>{const points=series.map((point,index)=>`${x(index,series.length)},${y(point.value)}`).join(' ');if(area){svg.append(svgElement('polygon',{points:`52,220 ${points} 772,220`,fill:'#b9dc7214'}));}svg.append(svgElement('polyline',{points,fill:'none',stroke:color,'stroke-width':3,'vector-effect':'non-scaling-stroke'}));};draw(ticker,'#b9dc72',true);if(benchmark.length)draw(benchmark,'#e5b95c');const start=textSvg(ticker[0].date,52,247,'start'),end=textSvg(ticker[ticker.length-1].date,772,247,'end');svg.append(start,end);
+      const hover=svgElement('g',{visibility:'hidden'}),vertical=svgElement('line',{y1:28,y2:220,stroke:'#91a49a','stroke-dasharray':'4 4'}),dot=svgElement('circle',{r:5,fill:'#b9dc72'}),box=svgElement('rect',{width:210,height:58,rx:7,fill:'#16261f',stroke:'#294238'}),line1=textSvg('',0,0,'start'),line2=textSvg('',0,0,'start');hover.append(vertical,dot,box,line1,line2);svg.append(hover);const hit=svgElement('rect',{x:52,y:20,width:720,height:205,fill:'transparent'});hit.addEventListener('mousemove',event=>{const bounds=svg.getBoundingClientRect(),local=(event.clientX-bounds.left)/bounds.width*800,index=Math.max(0,Math.min(ticker.length-1,Math.round((local-52)/720*(ticker.length-1)))),point=ticker[index],px=x(index,ticker.length),py=y(point.value),boxX=Math.min(562,Math.max(56,px+10));vertical.setAttribute('x1',px);vertical.setAttribute('x2',px);dot.setAttribute('cx',px);dot.setAttribute('cy',py);box.setAttribute('x',boxX);box.setAttribute('y',32);line1.setAttribute('x',boxX+10);line1.setAttribute('y',53);line1.textContent=point.date;line2.setAttribute('x',boxX+10);line2.setAttribute('y',76);line2.textContent=mode==='price'?`${perf.ticker}: ${number(point.value)} ${perf.currency??''}`:`${perf.ticker}: ${point.value>=0?'+':''}${number(point.value)}%`;hover.setAttribute('visibility','visible');});hit.addEventListener('mouseleave',()=>hover.setAttribute('visibility','hidden'));svg.append(hit);
+    }
+    function svgElement(name,attributes={}){const element=document.createElementNS('http://www.w3.org/2000/svg',name);for(const [key,value] of Object.entries(attributes))element.setAttribute(key,value);return element;}
+    function textSvg(value,x,y,anchor){const element=svgElement('text',{x,y,fill:'#91a49a','font-size':11,'text-anchor':anchor});element.textContent=value;return element;}
     async function openTicker(ticker){ try{ const params=new URLSearchParams({run_id:$('runSelect').value}); const data=await api('/api/candidate/'+encodeURIComponent(ticker)+'?'+params); const candidate=data.candidate, history=data.history; $('dialogTitle').textContent=`${ticker} · ${candidate.company_name??'Unknown company'}`; const body=$('dialogBody'); body.replaceChildren();
-      body.append(text('div',`${candidate.status_explanation} Rank ${candidate.rank??'—'} in the selected run.`,'subtle'));const scores=document.createElement('div');scores.className='score-grid';scores.append(scoreCard('Discovery score',candidate.scores.discovery),scoreCard('Fundamental score',candidate.scores.fundamental),scoreCard('Technical confidence',candidate.confidence.technical),scoreCard('Fundamental confidence',candidate.confidence.fundamental));body.append(scores,text('div',candidate.interpretation_warning,'interpretation'));
+      body.append(text('div',`${candidate.status_explanation} Rank ${candidate.rank??'—'} in the selected run.`,'subtle'));const scores=document.createElement('div');scores.className='score-grid';scores.append(scoreCard('Discovery score',candidate.scores.discovery),scoreCard('Fundamental score',candidate.scores.fundamental),scoreCard('Technical confidence',candidate.confidence.technical),scoreCard('Fundamental confidence',candidate.confidence.fundamental));body.append(scores,text('div',candidate.interpretation_warning,'interpretation'));if(data.price_performance)body.append(performanceSection(data.price_performance));else body.append(text('div','No provenance-compatible price snapshot is indexed for this run. Re-index the run to attach eligible cached prices.','warning'));
       const factors=document.createElement('div');factors.className='factor-columns';factors.append(factorList('Technical factors',candidate.technical_factors),factorList('Fundamental factors',candidate.fundamental_factors));body.append(factors,text('h3','Indexed score timeline'));const summary=text('div',`Best rank ${history.best_rank??'—'} · Worst rank ${history.worst_rank??'—'} · ${history.status_transition_count} status transitions`,'subtle'); body.append(summary); const timeline=document.createElement('div'); timeline.className='timeline';
       for(const point of history.timeline){ timeline.append(text('div',date(point.completed_at),'subtle')); const detail=document.createElement('div');detail.className='timeline-point';detail.append(text('strong',`${point.status} · Rank ${point.rank??'—'}`),text('div',`Score ${number(point.discovery_score)} · Fundamental confidence ${number(point.fundamental_confidence)}% · ${point.fundamental_data_quality??'unknown quality'}`,'subtle'));timeline.append(detail); } body.append(timeline); $('tickerDialog').showModal();
       }catch(error){notify(error.message);} }

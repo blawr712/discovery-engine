@@ -276,11 +276,21 @@ def main(arguments=None):
 
 def index_history_run(run_id: str) -> None:
     try:
-        result = index_saved_run(HISTORY_DATABASE, RUN_DIR, run_id)
+        result = index_saved_run(
+            HISTORY_DATABASE, RUN_DIR, run_id,
+            price_cache_directory=CACHE_DIR, benchmarks=BENCHMARKS,
+        )
     except (FileNotFoundError, OSError, ValueError, sqlite3.Error) as error:
         raise SystemExit(f"Unable to index saved run: {error}") from error
     print(f"History index complete for run: {result['run_id']}")
     print(f"Indexed results: {result['indexed_results']}")
+    print(f"Indexed price snapshots: {result['price_snapshots']['indexed']}")
+    print(
+        "Price snapshots skipped (missing/newer/read errors): "
+        f"{result['price_snapshots']['skipped_missing']}/"
+        f"{result['price_snapshots']['skipped_newer_than_run']}/"
+        f"{result['price_snapshots']['read_errors']}"
+    )
     print(f"History database: {result['database_path']}")
 
 

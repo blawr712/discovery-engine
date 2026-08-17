@@ -9,9 +9,10 @@ from pathlib import Path
 import sqlite3
 
 from src.run_state import load_saved_run
+from src.price_snapshots import index_cached_price_snapshots
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def connect_history_read_only(database_path: Path) -> sqlite3.Connection:
@@ -22,7 +23,13 @@ def connect_history_read_only(database_path: Path) -> sqlite3.Connection:
     return sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
 
 
-def index_saved_run(database_path: Path, run_directory: Path, run_id: str) -> dict:
+def index_saved_run(
+    database_path: Path,
+    run_directory: Path,
+    run_id: str,
+    price_cache_directory: Path | None = None,
+    benchmarks: dict[str, str] | None = None,
+) -> dict:
     """Idempotently index one completed file-backed run."""
     manifest, results = load_saved_run(run_directory, run_id)
     database_path = Path(database_path)
@@ -69,11 +76,21 @@ def index_saved_run(database_path: Path, run_directory: Path, run_id: str) -> di
                 for position, row in enumerate(results)
             ],
         )
+        price_snapshots = (
+            index_cached_price_snapshots(
+                connection, run_id, manifest, results,
+                price_cache_directory, benchmarks or {},
+            )
+            if price_cache_directory is not None
+            else {"indexed": 0, "skipped_missing": 0,
+                  "skipped_newer_than_run": 0, "read_errors": 0}
+        )
     return {
         "run_id": run_id,
         "indexed_results": len(results),
         "database_path": str(database_path),
         "indexed_at": indexed_at,
+        "price_snapshots": price_snapshots,
     }
 
 
@@ -120,6 +137,16 @@ def _initialize(connection: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_results_ticker ON results(ticker);
         CREATE INDEX IF NOT EXISTS idx_results_status ON results(status);
+        CREATE TABLE IF NOT EXISTS price_snapshots (
+            run_id TEXT NOT NULL, ticker TEXT NOT NULL, role TEXT NOT NULL,
+            country TEXT, captured_at TEXT NOT NULL, source_mtime TEXT NOT NULL,
+            point_count INTEGER NOT NULL, start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL, points_zlib BLOB NOT NULL,
+            PRIMARY KEY (run_id, ticker),
+            FOREIGN KEY (run_id) REFERENCES runs(run_id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_price_snapshots_ticker
+            ON price_snapshots(ticker);
     """)
     connection.execute(
         "INSERT OR REPLACE INTO metadata (key, value) VALUES ('schema_version', ?)",

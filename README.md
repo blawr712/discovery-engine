@@ -74,6 +74,20 @@ and fundamental confidence are described separately as data coverage. Factor
 points, maximums, source explanations, data quality, and status reasons remain
 visible; none of these fields are presented as a return forecast or recommendation.
 
+Re-indexing a completed run now attaches eligible cached one-year adjusted-price
+snapshots for successful candidates and their country benchmarks. Cache files
+newer than the run are rejected. Candidate details display 1W, 1M, 3M, 6M, and
+1Y percentage changes plus interactive normalized ticker-versus-benchmark charts,
+all from the read-only local history database. The dashboard uses dark mode by
+default.
+
+Charts default to the stored adjusted closing price. `Compare %` rebases the
+stock and its country benchmark to 0% at the selected period's start. U.S.
+equities use SPY (the S&P 500 ETF) and Canadian equities use XIU.TO (the
+S&P/TSX 60 ETF). “Vs benchmark” is the stock return minus the benchmark return
+in percentage points. Possible split or corporate-action discontinuities are
+flagged, and returns crossing them are hidden rather than reported as reliable.
+
 ## Core Principles
 
 - Discovery over prediction

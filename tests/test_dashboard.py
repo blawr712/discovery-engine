@@ -48,6 +48,8 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("Discovery history", html)
         self.assertIn("/api/candidates", html)
         self.assertIn("/api/candidate/", html)
+        self.assertIn("Price performance", html)
+        self.assertIn("color-scheme:dark", html)
         self.assertNotIn("https://", html)
 
     @staticmethod
