@@ -43,6 +43,7 @@ class YFinanceSource(MarketDataSource):
             period=period,
             interval="1d",
             auto_adjust=True,
+            actions=True,
             progress=False,
         )
 

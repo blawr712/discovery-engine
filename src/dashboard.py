@@ -6,6 +6,7 @@ from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import sqlite3
 from urllib.parse import parse_qs, unquote, urlparse
 
 from src.history import connect_history_read_only
@@ -41,10 +42,30 @@ class DashboardStore:
             result_count = connection.execute(
                 "SELECT COUNT(*) FROM results"
             ).fetchone()[0]
+            latest_run_id = runs[0][0] if runs else None
+            latest_candidates = connection.execute(
+                "SELECT COUNT(*) FROM results WHERE run_id = ? AND status = 'OK'",
+                (latest_run_id,),
+            ).fetchone()[0] if latest_run_id else 0
+            try:
+                latest_price_snapshots = connection.execute(
+                    """SELECT COUNT(*) FROM price_snapshots
+                       WHERE run_id = ? AND role = 'equity'""",
+                    (latest_run_id,),
+                ).fetchone()[0] if latest_run_id else 0
+            except sqlite3.OperationalError as error:
+                if "no such table" not in str(error).lower():
+                    raise
+                latest_price_snapshots = 0
         return {
             "run_count": len(runs),
             "result_count": result_count,
             "latest_run_id": runs[0][0] if runs else None,
+            "latest_price_snapshot_count": latest_price_snapshots,
+            "latest_candidate_count": latest_candidates,
+            "latest_price_coverage_percent": round(
+                latest_price_snapshots / latest_candidates * 100, 2
+            ) if latest_candidates else 0,
             "runs": [
                 {
                     "run_id": row[0], "completed_at": row[1],

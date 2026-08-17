@@ -34,6 +34,7 @@ class DashboardTests(unittest.TestCase):
 
             self.assertEqual(overview["run_count"], 2)
             self.assertEqual(overview["result_count"], 4)
+            self.assertEqual(overview["latest_price_coverage_percent"], 0)
             self.assertEqual(candidates["rows"][0]["ticker"], "AAA")
             self.assertEqual(timeline["appearances"], 2)
             self.assertEqual(detail["candidate"]["scores"]["discovery"]["value"], 80)

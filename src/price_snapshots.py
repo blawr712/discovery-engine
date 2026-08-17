@@ -121,6 +121,8 @@ def _clean_points(rows) -> list[dict]:
             "date": str(row["Date"])[:10],
             "close": round(close, 6),
             "volume": _number(row.get("Volume")),
+            "dividend": _number(row.get("Dividends")) or 0.0,
+            "split": _number(row.get("Stock Splits")) or 0.0,
         })
     points.sort(key=lambda point: point["date"])
     return points

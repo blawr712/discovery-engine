@@ -45,6 +45,7 @@ class PriceSnapshotTests(unittest.TestCase):
             self.assertEqual(result["price_snapshots"]["indexed"], 1)
             self.assertEqual(snapshot["point_count"], 2)
             self.assertEqual(snapshot["points"][1]["close"], 110)
+            self.assertEqual(snapshot["points"][1]["split"], 0.1)
 
             cache_path = next((cache / "prices").iterdir())
             os.utime(cache_path, (completed.timestamp() + 60,) * 2)
@@ -87,7 +88,8 @@ class PriceSnapshotTests(unittest.TestCase):
         path = directory / f"{digest}.json"
         path.write_text(json.dumps({"data": [
             {"Date": "2026-08-01T00:00:00.000", "Close": 100, "Volume": 10},
-            {"Date": "2026-08-08T00:00:00.000", "Close": 110, "Volume": 20},
+            {"Date": "2026-08-08T00:00:00.000", "Close": 110, "Volume": 20,
+             "Stock Splits": 0.1, "Dividends": 0},
         ]}), encoding="utf-8")
         os.utime(path, (mtime, mtime))
 

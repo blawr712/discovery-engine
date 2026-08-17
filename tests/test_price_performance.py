@@ -22,7 +22,7 @@ class PricePerformanceTests(unittest.TestCase):
         self.assertEqual(result["series"]["ticker"][0]["value"], 100)
         self.assertEqual(result["series"]["ticker"][-1]["value"], 150)
         self.assertIn("S&P 500", result["benchmark_definition"])
-        self.assertEqual(result["data_quality"], "ok")
+        self.assertEqual(result["data_quality"], "clean")
 
     def test_suppresses_returns_that_cross_possible_corporate_action(self):
         equity = self._snapshot("AAA", [
@@ -32,13 +32,43 @@ class PricePerformanceTests(unittest.TestCase):
 
         result = build_price_performance(equity, None)
 
-        self.assertEqual(result["data_quality"], "possible_corporate_action")
+        self.assertEqual(result["data_quality"], "unresolved_discontinuity")
         self.assertEqual(result["anomalies"][0]["date"], "2026-07-20")
         self.assertIsNone(result["period_returns"]["3M"]["ticker_return"])
         self.assertFalse(result["period_returns"]["3M"]["reliable"])
 
     def test_missing_equity_snapshot_returns_none(self):
         self.assertIsNone(build_price_performance(None, None))
+
+    def test_verified_reverse_split_adjusts_prior_prices_and_restores_returns(self):
+        equity = self._snapshot("AAA", [
+            ("2026-06-01", 0.4), ("2026-07-20", 4.2),
+            ("2026-08-01", 4.5),
+        ])
+        equity["points"][1]["split"] = 0.1
+
+        result = build_price_performance(equity, None)
+
+        self.assertEqual(result["data_quality"], "verified_adjusted")
+        self.assertEqual(result["corporate_actions"][0]["status"], "verified_adjusted")
+        self.assertEqual(result["series"]["price"][0]["value"], 4)
+        self.assertEqual(result["period_returns"]["3M"]["ticker_return"], 12.5)
+
+    def test_reported_split_does_not_double_adjust_already_adjusted_prices(self):
+        equity = self._snapshot("AAA", [
+            ("2026-06-01", 4.0), ("2026-07-20", 4.2),
+            ("2026-08-01", 4.5),
+        ])
+        equity["points"][1]["split"] = 0.1
+
+        result = build_price_performance(equity, None)
+
+        self.assertEqual(result["data_quality"], "verified")
+        self.assertEqual(
+            result["corporate_actions"][0]["status"],
+            "reported_already_adjusted",
+        )
+        self.assertEqual(result["series"]["price"][0]["value"], 4)
 
     @staticmethod
     def _snapshot(ticker, values):

@@ -26,6 +26,9 @@
   date axes, range controls, and hover values
 - Added possible corporate-action detection and suppression of contaminated returns
 - Added plain-language SPY and XIU.TO benchmark definitions
+- Added split and dividend collection to future Yahoo price histories
+- Added verified split adjustment without double-adjusting normalized prices
+- Added chart quality classifications, split markers, volume bars, and coverage
 
 ## v0.3.0 Intelligence — 2026-08-09
 

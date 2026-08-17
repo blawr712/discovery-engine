@@ -88,6 +88,12 @@ S&P/TSX 60 ETF). “Vs benchmark” is the stock return minus the benchmark retu
 in percentage points. Possible split or corporate-action discontinuities are
 flagged, and returns crossing them are hidden rather than reported as reliable.
 
+New market-data collections retain reported split and dividend events. When a
+declared split explains a discontinuity, the dashboard adjusts pre-event prices
+and volume into a consistent basis; already-adjusted histories are left alone.
+Charts label their price-data quality as clean, verified, verified adjusted, or
+unresolved, and the dashboard reports snapshot coverage for the latest run.
+
 ## Core Principles
 
 - Discovery over prediction
