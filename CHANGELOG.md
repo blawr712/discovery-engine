@@ -29,6 +29,8 @@
 - Added split and dividend collection to future Yahoo price histories
 - Added verified split adjustment without double-adjusting normalized prices
 - Added chart quality classifications, split markers, volume bars, and coverage
+- Added read-only side-by-side comparison for two to five indexed candidates
+- Added multi-ticker normalized performance charts and factor-strength heatmaps
 
 ## v0.3.0 Intelligence — 2026-08-09
 

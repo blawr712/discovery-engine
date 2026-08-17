@@ -94,6 +94,11 @@ and volume into a consistent basis; already-adjusted histories are left alone.
 Charts label their price-data quality as clean, verified, verified adjusted, or
 unresolved, and the dashboard reports snapshot coverage for the latest run.
 
+The dashboard candidate-comparison workspace accepts two to five comma-separated
+tickers from the selected run. It aligns ranks, scores, percentile descriptors,
+confidence, price quality, available returns, normalized price histories, and
+technical/fundamental factor strength without producing a recommendation.
+
 ## Core Principles
 
 - Discovery over prediction

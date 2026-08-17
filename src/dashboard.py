@@ -196,6 +196,94 @@ class DashboardStore:
         report.pop("rows", None)
         return report
 
+    def compare_candidates(self, tickers: list[str], run_id: str | None = None) -> dict:
+        normalized = list(dict.fromkeys(
+            str(ticker).strip().upper() for ticker in tickers if str(ticker).strip()
+        ))
+        if not 2 <= len(normalized) <= 5:
+            raise ValueError("Candidate comparison requires 2 to 5 unique tickers")
+        with closing(connect_history_read_only(self.database_path)) as connection:
+            if not run_id:
+                latest = connection.execute(
+                    "SELECT run_id FROM runs ORDER BY completed_at DESC, run_id DESC LIMIT 1"
+                ).fetchone()
+                if latest is None:
+                    raise ValueError("No indexed runs are available")
+                run_id = latest[0]
+            payloads = connection.execute(
+                "SELECT result_json FROM results WHERE run_id = ? ORDER BY position",
+                (run_id,),
+            ).fetchall()
+            rows = [json.loads(payload) for payload, in payloads]
+            lookup = {str(row.get("ticker", "")).upper(): row for row in rows}
+            missing = [ticker for ticker in normalized if ticker not in lookup]
+            if missing:
+                raise ValueError(
+                    f"Tickers are not present in indexed run {run_id}: "
+                    + ", ".join(missing)
+                )
+            ranks = _candidate_ranks({str(row.get("ticker")): row for row in rows})
+            discovery = score_percentiles(rows, "discovery_score")
+            fundamental = score_percentiles(rows, "fundamental_score_normalized")
+            details = []
+            for ticker in normalized:
+                row = lookup[ticker]
+                candidate = explain_candidate(
+                    row, ranks.get(str(row.get("ticker"))),
+                    discovery.get(str(row.get("ticker"))),
+                    fundamental.get(str(row.get("ticker"))),
+                )
+                equity = load_price_snapshot(connection, run_id, ticker)
+                benchmark_ticker = BENCHMARKS.get(str(row.get("country") or ""))
+                benchmark = (
+                    load_price_snapshot(connection, run_id, benchmark_ticker)
+                    if benchmark_ticker else None
+                )
+                performance = build_price_performance(equity, benchmark)
+                if performance is not None:
+                    performance["currency"] = row.get("currency")
+                details.append({"candidate": candidate, "performance": performance})
+        candidates = []
+        for detail in details:
+            candidate = detail["candidate"]
+            performance = detail["performance"]
+            candidates.append({
+                "ticker": candidate["ticker"],
+                "company_name": candidate["company_name"],
+                "status": candidate["status"],
+                "rank": candidate["rank"],
+                "discovery_score": candidate["scores"]["discovery"],
+                "fundamental_score": candidate["scores"]["fundamental"],
+                "technical_confidence": candidate["confidence"]["technical"],
+                "fundamental_confidence": candidate["confidence"]["fundamental"],
+                "technical_factors": _factor_strengths(
+                    candidate["technical_factors"]
+                ),
+                "fundamental_factors": _factor_strengths(
+                    candidate["fundamental_factors"]
+                ),
+                "period_returns": (
+                    performance["period_returns"] if performance else {}
+                ),
+                "price_quality": (
+                    performance["data_quality"] if performance else "unavailable"
+                ),
+                "price_series": (
+                    performance["series"]["price"] if performance else []
+                ),
+                "currency": performance.get("currency") if performance else None,
+            })
+        return {
+            "run_id": run_id,
+            "candidate_count": len(candidates),
+            "tickers": normalized,
+            "candidates": candidates,
+            "interpretation_warning": (
+                "Comparison fields describe historical signals and data coverage; "
+                "they are not recommendations or forecasts."
+            ),
+        }
+
 
 def create_dashboard_server(
     database_path: Path,
@@ -236,6 +324,11 @@ def create_dashboard_server(
                     ))
                 elif parsed.path == "/api/weekly":
                     self._json(200, store.weekly_report())
+                elif parsed.path == "/api/compare":
+                    tickers = (_one(query, "tickers", "")).split(",")
+                    self._json(200, store.compare_candidates(
+                        tickers, run_id=_one(query, "run_id")
+                    ))
                 else:
                     self._json(404, {"error": "not_found"})
             except (FileNotFoundError, OSError, ValueError) as error:
@@ -281,3 +374,19 @@ def run_dashboard(database_path: Path, port: int = 8765) -> None:
 def _one(query: dict, name: str, default=None):
     values = query.get(name)
     return values[0] if values else default
+
+
+def _factor_strengths(factors: list[dict]) -> dict[str, dict]:
+    return {
+        factor["name"]: {
+            "label": factor["label"],
+            "points": factor["points"],
+            "max_points": factor["max_points"],
+            "percent": round(
+                factor["points"] / factor["max_points"] * 100, 2
+            ) if factor["points"] is not None and factor["max_points"] else None,
+            "data_quality": factor["data_quality"],
+        }
+        for factor in factors
+        if factor.get("applicable")
+    }

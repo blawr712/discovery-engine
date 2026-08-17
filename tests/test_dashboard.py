@@ -30,6 +30,7 @@ class DashboardTests(unittest.TestCase):
             candidates = store.candidates(new_id, status="OK", country="US")
             timeline = store.ticker_history("aaa")
             detail = store.candidate_detail("aaa", new_id)
+            comparison = store.compare_candidates(["aaa", "bbb"], new_id)
             weekly = store.weekly_report()
 
             self.assertEqual(overview["run_count"], 2)
@@ -40,6 +41,11 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(detail["candidate"]["scores"]["discovery"]["value"], 80)
             self.assertEqual(detail["candidate"]["scores"]["discovery"]["descriptor"], "Top tier")
             self.assertIn("discovery_score", detail["glossary"])
+            self.assertEqual(comparison["tickers"], ["AAA", "BBB"])
+            self.assertEqual(comparison["candidate_count"], 2)
+            self.assertEqual(
+                comparison["candidates"][0]["fundamental_score"]["value"], None
+            )
             self.assertEqual(weekly["promotions_to_ok"][0]["ticker"], "AAA")
             self.assertNotIn("rows", weekly)
 
@@ -51,7 +57,16 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("/api/candidate/", html)
         self.assertIn("Price performance", html)
         self.assertIn("color-scheme:dark", html)
+        self.assertIn("/api/compare", html)
         self.assertNotIn("https://", html)
+
+    def test_comparison_requires_two_to_five_unique_tickers(self):
+        store = DashboardStore(Path("missing.sqlite3"))
+
+        with self.assertRaisesRegex(ValueError, "2 to 5"):
+            store.compare_candidates(["AAA", "aaa"])
+        with self.assertRaisesRegex(ValueError, "2 to 5"):
+            store.compare_candidates(["A", "B", "C", "D", "E", "F"])
 
     @staticmethod
     def _row(ticker, status, score, country):
