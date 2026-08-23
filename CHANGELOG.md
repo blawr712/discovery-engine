@@ -33,6 +33,8 @@
 - Added multi-ticker normalized performance charts and factor-strength heatmaps
 - Added persistent named dashboard watchlists isolated from indexed history
 - Added tracked status, rank, and score changes versus the prior indexed run
+- Fixed Canadian universe refreshes for changing TMX dated metric headers
+- Derived Canadian source dates from each TMX workbook instead of hardcoding May
 
 ## v0.3.0 Intelligence — 2026-08-09
 

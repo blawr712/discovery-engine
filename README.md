@@ -122,6 +122,17 @@ Run the complete configured universe:
 python main.py
 ```
 
+Refresh the Canadian universe by placing the latest TMX workbook at
+`data/raw/canada/tsx-and-tsxv-listed-companies.xlsx` and running:
+
+```powershell
+python -m src.build_canadian_universe
+```
+
+Older workbooks may be retained under `data/raw/canada/archive`; only `.xlsx`
+files directly inside the Canadian input directory are considered. Dated TMX
+metric headers and their source date are detected from the current workbook.
+
 Run a controlled smoke test by ticker or universe size:
 
 ```powershell

@@ -31,7 +31,7 @@ EXCLUDED_NAME_TERMS = [
     r"\bfund\b",
     r"\bclosed[- ]end\b",
     r"\bwarrant\b",
-    r"\bright(s)?\b",
+    r"\brights?\b",
     r"\bdebenture\b",
     r"\bpreferred\b",
     r"\bdepositary receipt\b",
@@ -124,6 +124,47 @@ def find_column(
             return normalized_lookup[normalized_name]
 
     return None
+
+
+def find_prefixed_column(
+    df: pd.DataFrame,
+    *possible_prefixes: str,
+) -> object | None:
+    """Find a TMX metric column while allowing its trailing as-of date to vary."""
+    normalized_columns = [
+        (normalize_column_name(column), column) for column in df.columns
+    ]
+    for possible_prefix in possible_prefixes:
+        prefix = normalize_column_name(possible_prefix)
+        for normalized, original in normalized_columns:
+            if normalized == prefix or normalized.startswith(f"{prefix} "):
+                return original
+    return None
+
+
+def get_prefixed_series(
+    df: pd.DataFrame,
+    *possible_prefixes: str,
+    default: object = pd.NA,
+) -> tuple[pd.Series, object | None]:
+    column = find_prefixed_column(df, *possible_prefixes)
+    if column is None:
+        return pd.Series(default, index=df.index), None
+    return df[column], column
+
+
+def source_date_from_column(column: object | None) -> str | None:
+    """Extract an ISO source date from a dated TMX metric header."""
+    if column is None:
+        return None
+    match = re.search(
+        r"\b\d{1,2}-[A-Za-z]+-\d{4}\b",
+        str(column).replace("\n", " "),
+    )
+    if match is None:
+        return None
+    parsed = pd.to_datetime(match.group(0), format="%d-%B-%Y", errors="coerce")
+    return None if pd.isna(parsed) else parsed.date().isoformat()
 
 
 def get_series(
@@ -296,48 +337,28 @@ def load_and_standardize_sheet(
 
     trust = clean_text(get_series(raw, "Trust"))
 
-    market_cap = pd.to_numeric(
-        get_series(
-            raw,
-            "Market Cap (C$) 31-May-2026",
-            "Market Cap (C$)\n31-May-2026",
-        ),
-        errors="coerce",
+    market_cap_values, market_cap_column = get_prefixed_series(
+        raw, "Market Cap (C$)"
     )
+    market_cap = pd.to_numeric(market_cap_values, errors="coerce")
 
     shares_outstanding = pd.to_numeric(
-        get_series(
-            raw,
-            "O/S Shares 31-May-2026",
-            "O/S Shares\n31-May-2026",
-        ),
+        get_prefixed_series(raw, "O/S Shares")[0],
         errors="coerce",
     )
 
     volume_ytd = pd.to_numeric(
-        get_series(
-            raw,
-            "Volume YTD 31-May-2026",
-            "Volume YTD\n31-May-2026",
-        ),
+        get_prefixed_series(raw, "Volume YTD")[0],
         errors="coerce",
     )
 
     value_traded_ytd = pd.to_numeric(
-        get_series(
-            raw,
-            "Value (C$) YTD 31-May-2026",
-            "Value (C$) YTD\n31-May-2026",
-        ),
+        get_prefixed_series(raw, "Value (C$) YTD")[0],
         errors="coerce",
     )
 
     trades_ytd = pd.to_numeric(
-        get_series(
-            raw,
-            "Number of Trades YTD 31-May-2026",
-            "Number of \nTrades YTD\n31-May-2026",
-        ),
+        get_prefixed_series(raw, "Number of Trades YTD")[0],
         errors="coerce",
     )
 
@@ -373,6 +394,7 @@ def load_and_standardize_sheet(
             "volume_ytd_source": volume_ytd,
             "value_traded_ytd_source_cad": value_traded_ytd,
             "trades_ytd_source": trades_ytd,
+            "source_date": source_date_from_column(market_cap_column),
         }
     )
 
@@ -464,7 +486,8 @@ def clean_canadian_universe(
     )
 
     universe["source"] = "TMX Listed Company Directory"
-    universe["source_date"] = "2026-05-31"
+    if "source_date" not in universe.columns:
+        universe["source_date"] = pd.NA
     universe["enabled"] = "TRUE"
 
     for column in OUTPUT_COLUMNS:
