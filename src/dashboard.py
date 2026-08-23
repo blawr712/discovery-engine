@@ -1,4 +1,4 @@
-"""Local read-only HTTP dashboard for indexed Discovery Engine history."""
+"""Local dashboard for read-only history and explicit watchlist workflows."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import sqlite3
 from urllib.parse import parse_qs, unquote, urlparse
 
 from src.history import connect_history_read_only
-from src.history_comparison import _candidate_ranks
+from src.history_comparison import _candidate_ranks, _compare_ticker, _load_run
 from src.history_reporting import build_ticker_history, build_weekly_report
 from src.score_explainability import (
     SCORE_GLOSSARY,
@@ -21,16 +21,20 @@ from src.score_explainability import (
 from src.config import BENCHMARKS
 from src.price_performance import build_price_performance
 from src.price_snapshots import load_price_snapshot
+from src.watchlists import WatchlistStore
 
 
 DASHBOARD_HTML = Path(__file__).with_name("dashboard_assets") / "index.html"
 
 
 class DashboardStore:
-    """Bounded read-only queries used by the local dashboard API."""
+    """Bounded dashboard queries with isolated watchlist persistence."""
 
-    def __init__(self, database_path: Path):
+    def __init__(self, database_path: Path, watchlist_path: Path | None = None):
         self.database_path = Path(database_path)
+        self.watchlist_store = WatchlistStore(
+            watchlist_path or self.database_path.with_name("watchlists.json")
+        )
 
     def overview(self) -> dict:
         with closing(connect_history_read_only(self.database_path)) as connection:
@@ -284,16 +288,103 @@ class DashboardStore:
             ),
         }
 
+    def watchlists(self, run_id: str | None = None) -> dict:
+        """Return named watchlists enriched with a two-run change snapshot."""
+        watchlists = self.watchlist_store.list_all()
+        with closing(connect_history_read_only(self.database_path)) as connection:
+            runs = connection.execute(
+                """SELECT run_id, fingerprint, universe_size FROM runs
+                   ORDER BY completed_at DESC, run_id DESC"""
+            ).fetchall()
+            run_ids = [row[0] for row in runs]
+            if not run_ids:
+                return {
+                    "selected_run_id": None, "previous_run_id": None,
+                    "comparison_warnings": [], "watchlists": watchlists,
+                }
+            selected_run_id = run_id or run_ids[0]
+            if selected_run_id not in run_ids:
+                raise ValueError(f"Run is not indexed: {selected_run_id}")
+            selected_index = run_ids.index(selected_run_id)
+            previous_run_id = (
+                run_ids[selected_index + 1]
+                if selected_index + 1 < len(run_ids) else None
+            )
+            comparison_warnings = _watchlist_warnings(
+                runs[selected_index],
+                runs[selected_index + 1]
+                if selected_index + 1 < len(runs) else None,
+            )
+            if not any(watchlist["items"] for watchlist in watchlists):
+                return {
+                    "selected_run_id": selected_run_id,
+                    "previous_run_id": previous_run_id,
+                    "comparison_warnings": comparison_warnings,
+                    "watchlists": watchlists,
+                }
+            selected_raw = _load_run(connection, selected_run_id)
+            previous_raw = (
+                _load_run(connection, previous_run_id) if previous_run_id else {}
+            )
+        selected = {ticker.upper(): row for ticker, row in selected_raw.items()}
+        previous = {ticker.upper(): row for ticker, row in previous_raw.items()}
+        selected_ranks = {
+            ticker.upper(): rank
+            for ticker, rank in _candidate_ranks(selected_raw).items()
+        }
+        previous_ranks = {
+            ticker.upper(): rank
+            for ticker, rank in _candidate_ranks(previous_raw).items()
+        }
+        enriched = []
+        for watchlist in watchlists:
+            output = {key: value for key, value in watchlist.items() if key != "items"}
+            output["items"] = [
+                _watchlist_item(
+                    item, previous.get(item["ticker"]), selected.get(item["ticker"]),
+                    previous_ranks, selected_ranks,
+                )
+                for item in watchlist["items"]
+            ]
+            enriched.append(output)
+        return {
+            "selected_run_id": selected_run_id,
+            "previous_run_id": previous_run_id,
+            "comparison_warnings": comparison_warnings,
+            "watchlists": enriched,
+        }
+
+    def create_watchlist(self, name: str) -> dict:
+        return self.watchlist_store.create(name)
+
+    def delete_watchlist(self, watchlist_id: str) -> None:
+        self.watchlist_store.delete(watchlist_id)
+
+    def add_to_watchlist(self, watchlist_id: str, ticker: str) -> dict:
+        normalized = str(ticker or "").strip().upper()
+        with closing(connect_history_read_only(self.database_path)) as connection:
+            exists = connection.execute(
+                "SELECT 1 FROM results WHERE ticker = ? COLLATE NOCASE LIMIT 1",
+                (normalized,),
+            ).fetchone()
+        if exists is None:
+            raise ValueError(f"Ticker is not present in indexed history: {normalized}")
+        return self.watchlist_store.add_item(watchlist_id, normalized)
+
+    def remove_from_watchlist(self, watchlist_id: str, ticker: str) -> None:
+        self.watchlist_store.remove_item(watchlist_id, ticker)
+
 
 def create_dashboard_server(
     database_path: Path,
     port: int = 8765,
     host: str = "127.0.0.1",
+    watchlist_path: Path | None = None,
 ) -> ThreadingHTTPServer:
     """Create a loopback-only dashboard server without starting its loop."""
-    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
-        raise ValueError("dashboard port must be between 1 and 65535")
-    store = DashboardStore(database_path)
+    if isinstance(port, bool) or not isinstance(port, int) or not 0 <= port <= 65535:
+        raise ValueError("dashboard port must be between 0 and 65535")
+    store = DashboardStore(database_path, watchlist_path)
     store.overview()
     html = DASHBOARD_HTML.read_bytes()
 
@@ -329,8 +420,49 @@ def create_dashboard_server(
                     self._json(200, store.compare_candidates(
                         tickers, run_id=_one(query, "run_id")
                     ))
+                elif parsed.path == "/api/watchlists":
+                    self._json(200, store.watchlists(
+                        run_id=_one(query, "run_id")
+                    ))
                 else:
                     self._json(404, {"error": "not_found"})
+            except (FileNotFoundError, OSError, ValueError) as error:
+                self._json(400, {"error": str(error)})
+            except Exception:
+                self._json(500, {"error": "internal_server_error"})
+
+        def do_POST(self):  # noqa: N802 - required by BaseHTTPRequestHandler
+            try:
+                path = unquote(urlparse(self.path).path)
+                payload = self._body()
+                parts = [part for part in path.split("/") if part]
+                if parts == ["api", "watchlists"]:
+                    self._json(201, store.create_watchlist(payload.get("name")))
+                elif len(parts) == 4 and parts[:2] == ["api", "watchlists"] and parts[3] == "items":
+                    self._json(201, store.add_to_watchlist(
+                        parts[2], payload.get("ticker")
+                    ))
+                else:
+                    self._json(404, {"error": "not_found"})
+            except (FileNotFoundError, OSError, ValueError) as error:
+                self._json(400, {"error": str(error)})
+            except Exception:
+                self._json(500, {"error": "internal_server_error"})
+
+        def do_DELETE(self):  # noqa: N802 - required by BaseHTTPRequestHandler
+            try:
+                parts = [
+                    part for part in unquote(urlparse(self.path).path).split("/")
+                    if part
+                ]
+                if len(parts) == 3 and parts[:2] == ["api", "watchlists"]:
+                    store.delete_watchlist(parts[2])
+                elif len(parts) == 5 and parts[:2] == ["api", "watchlists"] and parts[3] == "items":
+                    store.remove_from_watchlist(parts[2], parts[4])
+                else:
+                    self._json(404, {"error": "not_found"})
+                    return
+                self._json(200, {"status": "deleted"})
             except (FileNotFoundError, OSError, ValueError) as error:
                 self._json(400, {"error": str(error)})
             except Exception:
@@ -342,6 +474,21 @@ def create_dashboard_server(
                 json.dumps(payload, sort_keys=True).encode("utf-8"),
                 "application/json; charset=utf-8",
             )
+
+        def _body(self):
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError as error:
+                raise ValueError("Invalid request body length") from error
+            if not 1 <= length <= 16_384:
+                raise ValueError("JSON request body must contain 1 to 16384 bytes")
+            try:
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise ValueError("Request body must be valid JSON") from error
+            if not isinstance(payload, dict):
+                raise ValueError("Request body must be a JSON object")
+            return payload
 
         def _send(self, status, payload, content_type):
             self.send_response(status)
@@ -360,9 +507,11 @@ def create_dashboard_server(
 
 def run_dashboard(database_path: Path, port: int = 8765) -> None:
     """Serve the dashboard on loopback until interrupted."""
+    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+        raise ValueError("dashboard port must be between 1 and 65535")
     server = create_dashboard_server(database_path, port=port)
     print(f"Discovery Engine dashboard: http://127.0.0.1:{port}")
-    print("Read-only local mode. Press Ctrl+C to stop.")
+    print("Indexed history is read-only; watchlist edits stay local. Press Ctrl+C to stop.")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -390,3 +539,51 @@ def _factor_strengths(factors: list[dict]) -> dict[str, dict]:
         for factor in factors
         if factor.get("applicable")
     }
+
+
+def _watchlist_item(item, previous, selected, previous_ranks, selected_ranks):
+    ticker = item["ticker"]
+    if previous is None and selected is None:
+        comparison = {
+            "new_status": None, "old_status": None,
+            "new_rank": None, "old_rank": None, "rank_change": None,
+            "new_discovery_score": None, "old_discovery_score": None,
+            "score_change": None, "presence": "absent",
+            "change_types": ["absent"],
+        }
+    else:
+        comparison = _compare_ticker(
+            ticker, previous, selected, previous_ranks, selected_ranks
+        )
+    current = selected or {}
+    prior = previous or {}
+    return {
+        **item,
+        "company_name": current.get("company_name") or prior.get("company_name"),
+        "country": current.get("country") or prior.get("country"),
+        "current_status": comparison["new_status"],
+        "previous_status": comparison["old_status"],
+        "current_rank": comparison["new_rank"],
+        "previous_rank": comparison["old_rank"],
+        "rank_change": comparison["rank_change"],
+        "current_score": comparison["new_discovery_score"],
+        "previous_score": comparison["old_discovery_score"],
+        "score_change": comparison["score_change"],
+        "presence": comparison["presence"],
+        "change_types": comparison["change_types"],
+    }
+
+
+def _watchlist_warnings(selected_run, previous_run):
+    if previous_run is None:
+        return []
+    warnings = []
+    if selected_run[1] != previous_run[1]:
+        warnings.append(
+            "Run fingerprints differ; changes may include configuration effects."
+        )
+    if selected_run[2] != previous_run[2]:
+        warnings.append(
+            "Universe sizes differ; presence and rank changes may not be directly comparable."
+        )
+    return warnings

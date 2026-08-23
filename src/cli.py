@@ -79,7 +79,7 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
     selection.add_argument(
         "--dashboard",
         action="store_true",
-        help="serve the read-only local history dashboard on loopback",
+        help="serve the local history and watchlist dashboard on loopback",
     )
     parser.add_argument(
         "--dashboard-port",

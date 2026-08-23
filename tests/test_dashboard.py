@@ -1,9 +1,12 @@
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 import tempfile
+from threading import Thread
 import unittest
+from urllib.request import Request, urlopen
 
-from src.dashboard import DASHBOARD_HTML, DashboardStore
+from src.dashboard import DASHBOARD_HTML, DashboardStore, create_dashboard_server
 from src.history import index_saved_run
 from src.run_state import RunState
 
@@ -24,13 +27,17 @@ class DashboardTests(unittest.TestCase):
             ])
             index_saved_run(database, runs, old_id)
             index_saved_run(database, runs, new_id)
-            store = DashboardStore(database)
+            watchlist_path = root / "watchlists.json"
+            store = DashboardStore(database, watchlist_path)
 
             overview = store.overview()
             candidates = store.candidates(new_id, status="OK", country="US")
             timeline = store.ticker_history("aaa")
             detail = store.candidate_detail("aaa", new_id)
             comparison = store.compare_candidates(["aaa", "bbb"], new_id)
+            watchlist = store.create_watchlist("Research queue")
+            store.add_to_watchlist(watchlist["id"], "aaa")
+            watchlists = store.watchlists(new_id)
             weekly = store.weekly_report()
 
             self.assertEqual(overview["run_count"], 2)
@@ -46,6 +53,16 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(
                 comparison["candidates"][0]["fundamental_score"]["value"], None
             )
+            tracked = watchlists["watchlists"][0]["items"][0]
+            self.assertEqual(watchlists["previous_run_id"], old_id)
+            self.assertIn("fingerprints differ", watchlists["comparison_warnings"][0])
+            self.assertEqual(tracked["ticker"], "AAA")
+            self.assertEqual(tracked["current_status"], "OK")
+            self.assertEqual(tracked["previous_status"], "FILTERED")
+            self.assertEqual(tracked["score_change"], 40)
+            store.remove_from_watchlist(watchlist["id"], "AAA")
+            store.delete_watchlist(watchlist["id"])
+            self.assertEqual(store.watchlists(new_id)["watchlists"], [])
             self.assertEqual(weekly["promotions_to_ok"][0]["ticker"], "AAA")
             self.assertNotIn("rows", weekly)
 
@@ -58,6 +75,7 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("Price performance", html)
         self.assertIn("color-scheme:dark", html)
         self.assertIn("/api/compare", html)
+        self.assertIn("/api/watchlists", html)
         self.assertNotIn("https://", html)
 
     def test_comparison_requires_two_to_five_unique_tickers(self):
@@ -67,6 +85,74 @@ class DashboardTests(unittest.TestCase):
             store.compare_candidates(["AAA", "aaa"])
         with self.assertRaisesRegex(ValueError, "2 to 5"):
             store.compare_candidates(["A", "B", "C", "D", "E", "F"])
+
+    def test_watchlist_rejects_ticker_missing_from_indexed_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runs = root / "runs"
+            database = root / "history.sqlite3"
+            run_id = self._save(
+                runs, "one", datetime(2026, 8, 1, tzinfo=timezone.utc),
+                [self._row("AAA", "OK", 80, "US")],
+            )
+            index_saved_run(database, runs, run_id)
+            store = DashboardStore(database, root / "watchlists.json")
+            watchlist = store.create_watchlist("Ideas")
+
+            with self.assertRaisesRegex(ValueError, "not present"):
+                store.add_to_watchlist(watchlist["id"], "MISSING")
+
+    def test_watchlist_http_workflow(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runs = root / "runs"
+            database = root / "history.sqlite3"
+            run_id = self._save(
+                runs, "one", datetime(2026, 8, 1, tzinfo=timezone.utc),
+                [self._row("AAA", "OK", 80, "US")],
+            )
+            index_saved_run(database, runs, run_id)
+            server = create_dashboard_server(
+                database, port=0, watchlist_path=root / "watchlists.json"
+            )
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_address[1]}"
+            try:
+                created = self._request(
+                    base_url + "/api/watchlists", "POST", {"name": "Ideas"}
+                )
+                self._request(
+                    base_url + f"/api/watchlists/{created['id']}/items",
+                    "POST", {"ticker": "AAA"},
+                )
+                payload = self._request(
+                    base_url + f"/api/watchlists?run_id={run_id}"
+                )
+                self.assertEqual(
+                    payload["watchlists"][0]["items"][0]["ticker"], "AAA"
+                )
+                self._request(
+                    base_url + f"/api/watchlists/{created['id']}/items/AAA",
+                    "DELETE",
+                )
+                self._request(
+                    base_url + f"/api/watchlists/{created['id']}", "DELETE"
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    @staticmethod
+    def _request(url, method="GET", payload=None):
+        data = None if payload is None else json.dumps(payload).encode("utf-8")
+        request = Request(
+            url, data=data, method=method,
+            headers={"Content-Type": "application/json"} if data else {},
+        )
+        with urlopen(request, timeout=3) as response:
+            return json.loads(response.read().decode("utf-8"))
 
     @staticmethod
     def _row(ticker, status, score, country):

@@ -58,7 +58,7 @@ python main.py --weekly-report
 Weekly reports explicitly warn when run fingerprints differ, because rank and
 score movements may then include configuration changes as well as market data.
 
-Launch the local read-only dashboard:
+Launch the local history dashboard:
 
 ```powershell
 python main.py --dashboard
@@ -66,7 +66,8 @@ python main.py --dashboard
 
 Then open `http://127.0.0.1:8765`. Use `--dashboard-port PORT` to choose a
 different loopback port. The dashboard is self-contained, makes no provider
-calls, and opens the history database with SQLite write access disabled.
+calls, and opens the history database with SQLite write access disabled. Only
+explicit watchlist actions write local workflow state, in a separate JSON file.
 
 Candidate details explain how each stored score was constructed. Discovery and
 Fundamental Scores receive within-run percentile descriptors, while technical
@@ -98,6 +99,12 @@ The dashboard candidate-comparison workspace accepts two to five comma-separated
 tickers from the selected run. It aligns ranks, scores, percentile descriptors,
 confidence, price quality, available returns, normalized price histories, and
 technical/fundamental factor strength without producing a recommendation.
+
+Named dashboard watchlists persist in `data/history/watchlists.json`, separate
+from the read-only history database. A tracked ticker can be added directly or
+from the candidate explorer, then reviewed against the immediately preceding
+indexed run for status, rank, and Discovery Score changes. Watchlists are local
+workflow state and never trigger market-data or AI requests.
 
 ## Core Principles
 

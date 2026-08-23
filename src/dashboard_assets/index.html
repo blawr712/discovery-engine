@@ -71,6 +71,11 @@
     .compare-card h3 { color:var(--green); }
     .heatmap { display:grid; gap:4px; overflow:auto; margin-top:10px; }
     .heat-cell { min-width:105px; min-height:34px; padding:7px; border:1px solid var(--line); border-radius:5px; font-size:11px; }
+    .small-button { height:28px; padding:0 9px; font-size:11px; }
+    .danger { background:#5d302d; }
+    .watchlist-tools { display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; margin:12px 0; }
+    .watchlist-tools .filters { flex:1; }
+    .watchlist-tools input { min-width:150px; }
     .empty { padding:30px; text-align:center; color:var(--muted); }
     #status { position:fixed; right:18px; bottom:18px; background:var(--ink); color:#fff; padding:10px 14px; border-radius:8px; opacity:0; pointer-events:none; transition:.2s; }
     #status.show { opacity:1; }
@@ -79,7 +84,7 @@
   </style>
 </head>
 <body>
-  <header><div class="eyebrow">V0.4 · Local intelligence</div><h1>Discovery history</h1><p>Read-only exploration of completed, indexed equity runs.</p></header>
+  <header><div class="eyebrow">V0.4 · Local intelligence</div><h1>Discovery history</h1><p>Read-only indexed runs with persistent local research workflows.</p></header>
   <main>
     <section class="metrics">
       <div class="metric"><span>Indexed runs</span><strong id="runCount">—</strong></div>
@@ -98,7 +103,17 @@
           <button id="refreshButton">Apply</button>
         </div>
       </div>
-      <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Ticker</th><th>Company</th><th>Status</th><th>Score</th><th>Standing</th><th>Score conf.</th><th>Fund. conf.</th><th>Quality</th><th>Country</th><th>Sector</th></tr></thead><tbody id="candidateRows"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Ticker</th><th>Company</th><th>Status</th><th>Score</th><th>Standing</th><th>Score conf.</th><th>Fund. conf.</th><th>Quality</th><th>Country</th><th>Sector</th><th>Track</th></tr></thead><tbody id="candidateRows"></tbody></table></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><div><h2>Watchlists</h2><div class="subtle" id="watchlistSummary">Persistent local research queues with changes versus the prior indexed run.</div></div></div>
+      <div class="watchlist-tools">
+        <div class="filters"><select id="watchlistSelect" aria-label="Watchlist"></select><input id="watchlistName" placeholder="New list name" aria-label="New watchlist name"><button id="createWatchlist">Create</button><button id="deleteWatchlist" class="danger">Delete list</button></div>
+        <div class="filters"><input id="watchTicker" placeholder="Ticker" aria-label="Ticker to track"><button id="addWatchTicker">Add ticker</button></div>
+      </div>
+      <div id="watchlistWarnings"></div>
+      <div id="watchlistEmpty" class="empty">Create a watchlist or track a candidate from the explorer.</div>
+      <div id="watchlistTable" class="table-wrap" hidden><table><thead><tr><th>Ticker</th><th>Company</th><th>Current</th><th>Rank</th><th>Rank Δ</th><th>Score</th><th>Score Δ</th><th>Prior status</th><th>Country</th><th>Added</th><th></th></tr></thead><tbody id="watchlistRows"></tbody></table></div>
     </section>
     <section class="panel">
       <div class="panel-head"><div><h2>Candidate comparison</h2><div class="subtle">Compare two to five tickers within the selected run.</div></div><div class="filters"><input id="compareTickers" placeholder="BANL, CCG, OPAD" aria-label="Comparison tickers"><button id="compareButton">Compare</button></div></div>
@@ -122,7 +137,7 @@
     const number = value => value == null ? '—' : Number(value).toLocaleString(undefined,{maximumFractionDigits:2});
     const date = value => value ? new Date(value).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}) : '—';
     const text = (tag,value,className='') => { const el=document.createElement(tag); el.textContent=value ?? '—'; if(className) el.className=className; return el; };
-    async function api(path){ const response=await fetch(path); const payload=await response.json(); if(!response.ok) throw new Error(payload.error||'Request failed'); return payload; }
+    async function api(path,options={}){ const response=await fetch(path,{...options,headers:options.body?{'Content-Type':'application/json',...(options.headers||{})}:options.headers}); const payload=await response.json(); if(!response.ok) throw new Error(payload.error||'Request failed'); return payload; }
     function notify(message){ $('status').textContent=message; $('status').classList.add('show'); setTimeout(()=>$('status').classList.remove('show'),2600); }
 
     async function loadOverview(){
@@ -135,11 +150,17 @@
       const data=await api('/api/candidates?'+params); $('tableSummary').textContent=`Showing ${data.rows.length} of ${number(data.total)} matches · click a company for its timeline`;
       const body=$('candidateRows'); body.replaceChildren();
       for(const row of data.rows){ const tr=document.createElement('tr'); tr.dataset.ticker=row.ticker;
-        [row.rank,row.ticker,row.company_name,row.status,number(row.discovery_score),row.discovery_descriptor,number(row.score_confidence),number(row.fundamental_confidence),row.fundamental_data_quality,row.country,row.sector].forEach((value,index)=>tr.append(text('td',value,index===1?'ticker':'')));
+        [row.rank,row.ticker,row.company_name,row.status,number(row.discovery_score),row.discovery_descriptor,number(row.score_confidence),number(row.fundamental_confidence),row.fundamental_data_quality,row.country,row.sector].forEach((value,index)=>tr.append(text('td',value,index===1?'ticker':'')));const action=document.createElement('td'),track=text('button','Track','small-button');track.dataset.watch=row.ticker;action.append(track);tr.append(action);
         body.append(tr);
       }
-      if(!data.rows.length){ const tr=document.createElement('tr'); const td=text('td','No candidates match these filters.','empty'); td.colSpan=11; tr.append(td); body.append(tr); }
+      if(!data.rows.length){ const tr=document.createElement('tr'); const td=text('td','No candidates match these filters.','empty'); td.colSpan=12; tr.append(td); body.append(tr); }
     }
+    let watchlistData={watchlists:[]};
+    function activeWatchlist(){return watchlistData.watchlists.find(item=>item.id===$('watchlistSelect').value);}
+    async function loadWatchlists(preferredId){const params=new URLSearchParams({run_id:$('runSelect').value});watchlistData=await api('/api/watchlists?'+params);const select=$('watchlistSelect'),current=preferredId??select.value;select.replaceChildren(...watchlistData.watchlists.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=`${item.name} (${item.items.length})`;return option;}));if(watchlistData.watchlists.some(item=>item.id===current))select.value=current;renderWatchlist();}
+    function renderWatchlist(){const watchlist=activeWatchlist(),empty=$('watchlistEmpty'),table=$('watchlistTable'),body=$('watchlistRows'),warnings=$('watchlistWarnings');body.replaceChildren();warnings.replaceChildren(...(watchlistData.comparison_warnings??[]).map(message=>text('div',message,'warning')));if(!watchlist){empty.hidden=false;table.hidden=true;$('deleteWatchlist').disabled=true;return;}$('deleteWatchlist').disabled=false;empty.hidden=watchlist.items.length>0;empty.textContent='This watchlist is empty. Add a ticker above or track one from the explorer.';table.hidden=!watchlist.items.length;const previous=watchlistData.previous_run_id?`Changes compare the selected run with ${watchlistData.previous_run_id}.`:'No earlier indexed run is available for change calculations.';$('watchlistSummary').textContent=`${watchlist.items.length} tracked candidate${watchlist.items.length===1?'':'s'}. ${previous}`;for(const item of watchlist.items){const tr=document.createElement('tr');if(item.current_status)tr.dataset.ticker=item.ticker;const rankDelta=item.rank_change==null?'—':`${item.rank_change>0?'+':''}${number(item.rank_change)}`,scoreDelta=item.score_change==null?'—':`${item.score_change>0?'+':''}${number(item.score_change)}`;[[item.ticker,'ticker'],[item.company_name,''],[item.current_status??'Not present',''],[item.current_rank,''],[rankDelta,item.rank_change>0?'positive':item.rank_change<0?'negative':''],[number(item.current_score),''],[scoreDelta,item.score_change>0?'positive':item.score_change<0?'negative':''],[item.previous_status,''],[item.country,''],[date(item.added_at),'']].forEach(([value,className])=>tr.append(text('td',value,className)));const action=document.createElement('td'),remove=text('button','Remove','small-button danger');remove.dataset.remove=item.ticker;action.append(remove);tr.append(action);body.append(tr);}}
+    async function createWatchlist(name){const created=await api('/api/watchlists',{method:'POST',body:JSON.stringify({name})});$('watchlistName').value='';await loadWatchlists(created.id);return created;}
+    async function addToWatchlist(ticker){ticker=String(ticker??'').trim();if(!ticker)throw new Error('Enter a ticker to track');let watchlist=activeWatchlist();if(!watchlist)watchlist=await createWatchlist('Research Watchlist');await api(`/api/watchlists/${encodeURIComponent(watchlist.id)}/items`,{method:'POST',body:JSON.stringify({ticker})});$('watchTicker').value='';await loadWatchlists(watchlist.id);notify(`${ticker.toUpperCase()} added to ${watchlist.name}`);}
     function movements(target,rows,positive){ const root=$(target); root.replaceChildren(); for(const row of rows.slice(0,7)){ const line=document.createElement('div'); line.className='movement'; line.append(text('span',row.ticker,'ticker'),text('span',`${row.old_rank} → ${row.new_rank} (${row.rank_change>0?'+':''}${row.rank_change})`,positive?'positive':'negative')); root.append(line); } }
     async function loadWeekly(){ const data=await api('/api/weekly'); $('weeklyRange').textContent=`${date(data.compatibility.old_completed_at)} → ${date(data.compatibility.new_completed_at)} · ${data.compatibility.classification.replaceAll('_',' ')}`;
       $('movementSummary').replaceChildren(...[['Promotions to OK',data.promotions_to_ok.length],['Demotions from OK',data.demotions_from_ok.length],['Status transitions',data.summary.status_transitions],['Score changes',data.summary.score_changes],['Data-quality changes',data.summary.data_quality_changes]].map(([label,value])=>{const line=document.createElement('div');line.className='movement';line.append(text('span',label),text('strong',number(value)));return line;}));
@@ -174,8 +195,9 @@
       }catch(error){notify(error.message);} }
     $('refreshButton').addEventListener('click',()=>loadCandidates().catch(error=>notify(error.message))); $('searchFilter').addEventListener('keydown',event=>{if(event.key==='Enter') $('refreshButton').click();});
     $('compareButton').addEventListener('click',loadComparison);$('compareTickers').addEventListener('keydown',event=>{if(event.key==='Enter')loadComparison();});
-    $('candidateRows').addEventListener('click',event=>{const row=event.target.closest('tr[data-ticker]');if(row)openTicker(row.dataset.ticker);}); $('closeDialog').addEventListener('click',()=>$('tickerDialog').close());
-    Promise.all([loadOverview()]).then(loadCandidates).catch(error=>notify(error.message)); loadWeekly().catch(error=>notify(error.message));
+    $('candidateRows').addEventListener('click',event=>{const track=event.target.closest('button[data-watch]');if(track){addToWatchlist(track.dataset.watch).catch(error=>notify(error.message));return;}const row=event.target.closest('tr[data-ticker]');if(row)openTicker(row.dataset.ticker);});
+    $('watchlistSelect').addEventListener('change',renderWatchlist);$('createWatchlist').addEventListener('click',()=>createWatchlist($('watchlistName').value).catch(error=>notify(error.message)));$('watchlistName').addEventListener('keydown',event=>{if(event.key==='Enter')$('createWatchlist').click();});$('addWatchTicker').addEventListener('click',()=>addToWatchlist($('watchTicker').value).catch(error=>notify(error.message)));$('watchTicker').addEventListener('keydown',event=>{if(event.key==='Enter')$('addWatchTicker').click();});$('deleteWatchlist').addEventListener('click',async()=>{const watchlist=activeWatchlist();if(!watchlist||!confirm(`Delete ${watchlist.name}?`))return;try{await api(`/api/watchlists/${encodeURIComponent(watchlist.id)}`,{method:'DELETE'});await loadWatchlists();notify('Watchlist deleted');}catch(error){notify(error.message);}});$('watchlistRows').addEventListener('click',async event=>{const remove=event.target.closest('button[data-remove]');if(remove){event.stopPropagation();const watchlist=activeWatchlist();try{await api(`/api/watchlists/${encodeURIComponent(watchlist.id)}/items/${encodeURIComponent(remove.dataset.remove)}`,{method:'DELETE'});await loadWatchlists(watchlist.id);notify(`${remove.dataset.remove} removed`);}catch(error){notify(error.message);}return;}const row=event.target.closest('tr[data-ticker]');if(row)openTicker(row.dataset.ticker);});$('runSelect').addEventListener('change',()=>Promise.all([loadCandidates(),loadWatchlists()]).catch(error=>notify(error.message)));$('closeDialog').addEventListener('click',()=>$('tickerDialog').close());
+    Promise.all([loadOverview()]).then(()=>Promise.all([loadCandidates(),loadWatchlists()])).catch(error=>notify(error.message)); loadWeekly().catch(error=>notify(error.message));
   </script>
 </body>
 </html>

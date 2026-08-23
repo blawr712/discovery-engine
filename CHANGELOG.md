@@ -31,6 +31,8 @@
 - Added chart quality classifications, split markers, volume bars, and coverage
 - Added read-only side-by-side comparison for two to five indexed candidates
 - Added multi-ticker normalized performance charts and factor-strength heatmaps
+- Added persistent named dashboard watchlists isolated from indexed history
+- Added tracked status, rank, and score changes versus the prior indexed run
 
 ## v0.3.0 Intelligence — 2026-08-09
 
