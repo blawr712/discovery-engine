@@ -44,6 +44,9 @@ class PriceSnapshotTests(unittest.TestCase):
 
             self.assertEqual(result["price_snapshots"]["indexed"], 1)
             self.assertEqual(snapshot["point_count"], 2)
+            self.assertEqual(snapshot["points"][1]["open"], 105)
+            self.assertEqual(snapshot["points"][1]["high"], 112)
+            self.assertEqual(snapshot["points"][1]["low"], 103)
             self.assertEqual(snapshot["points"][1]["close"], 110)
             self.assertEqual(snapshot["points"][1]["split"], 0.1)
 
@@ -87,8 +90,10 @@ class PriceSnapshotTests(unittest.TestCase):
         digest = hashlib.sha256(f"{ticker}|1y".encode()).hexdigest()
         path = directory / f"{digest}.json"
         path.write_text(json.dumps({"data": [
-            {"Date": "2026-08-01T00:00:00.000", "Close": 100, "Volume": 10},
-            {"Date": "2026-08-08T00:00:00.000", "Close": 110, "Volume": 20,
+            {"Date": "2026-08-01T00:00:00.000", "Open": 98, "High": 102,
+             "Low": 97, "Close": 100, "Volume": 10},
+            {"Date": "2026-08-08T00:00:00.000", "Open": 105, "High": 112,
+             "Low": 103, "Close": 110, "Volume": 20,
              "Stock Splits": 0.1, "Dividends": 0},
         ]}), encoding="utf-8")
         os.utime(path, (mtime, mtime))

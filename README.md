@@ -6,7 +6,7 @@ Discovery Engine is a modular Python platform that analyzes the North American e
 
 ## Current Status
 
-**Version:** v0.4 Platform — Sprint 1 in progress
+**Version:** v0.4 Platform — Sprint 3 in progress
 
 The project now applies an explainable metadata pre-filter, persistent cache,
 bounded concurrent collection, transient retry/backoff, and resumable runs.
@@ -88,8 +88,9 @@ technical drivers, largest unused factor capacity, and separate technical and
 fundamental coverage. These descriptions explain the configured screen; they do
 not predict returns or make investment recommendations.
 
-Charts default to the stored adjusted closing price. `Compare %` rebases the
-stock and its country benchmark to 0% at the selected period's start. U.S.
+Charts default to adjusted candlesticks when OHLCV is available and otherwise
+use the stored adjusted closing price. `Vs benchmark` rebases the stock and its
+country benchmark to 0% at the selected period's start. U.S.
 equities use SPY (the S&P 500 ETF) and Canadian equities use XIU.TO (the
 S&P/TSX 60 ETF). “Vs benchmark” is the stock return minus the benchmark return
 in percentage points. Possible split or corporate-action discontinuities are
@@ -102,9 +103,17 @@ Charts label their price-data quality as clean, verified, verified adjusted, or
 unresolved, and the dashboard reports snapshot coverage for the latest run.
 
 The candidate chart workspace also provides YTD performance, latest-price and
-volume context, optional 20/50/200-session moving averages, a zoom control,
-crosshair values, and split/dividend markers. Actual adjusted close remains
-separate from the benchmark-relative percentage view.
+volume context, line and candlestick views, linear and logarithmic price axes,
+20/50/200-session simple moving averages, a 20-session exponential moving
+average, 20-session Bollinger Bands, zoom, full OHLCV crosshair values, and
+split/dividend markers. Actual adjusted prices remain separate from the
+benchmark-relative percentage view.
+
+Completed runs indexed before OHLCV support remain usable as close-only line
+charts. Re-run `python main.py --index-run RUN_ID` to replace that run's
+compressed price snapshots with provenance-compatible OHLCV from its existing
+cache files; this remains an offline indexing operation and never refreshes
+market data.
 
 The dashboard candidate-comparison workspace accepts two to five comma-separated
 tickers from the selected run. It aligns ranks, scores, percentile descriptors,

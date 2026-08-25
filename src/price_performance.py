@@ -50,6 +50,8 @@ def build_price_performance(equity: dict | None, benchmark: dict | None) -> dict
         equity_points[0]["date"],
         benchmark_points[0]["date"] if benchmark_points else equity_points[0]["date"],
     )
+    ohlcv = _ohlcv_series(equity_points)
+    ohlcv_count = len(ohlcv)
     return {
         "ticker": equity["ticker"],
         "benchmark": benchmark.get("ticker") if benchmark else None,
@@ -61,6 +63,14 @@ def build_price_performance(equity: dict | None, benchmark: dict | None) -> dict
         "end_date": equity["end_date"],
         "point_count": equity["point_count"],
         "source_mtime": equity["source_mtime"],
+        "capabilities": {
+            "ohlcv": ohlcv_count >= 2,
+            "ohlcv_point_count": ohlcv_count,
+            "ohlcv_coverage_percent": round(
+                ohlcv_count / len(equity_points) * 100, 2
+            ),
+            "legacy_close_only": ohlcv_count == 0,
+        },
         "summary": _price_summary(equity_points),
         "period_returns": metrics,
         "data_quality": (
@@ -84,6 +94,12 @@ def build_price_performance(equity: dict | None, benchmark: dict | None) -> dict
                 str(window): _moving_average(equity_points, window)
                 for window in (20, 50, 200)
             },
+            "exponential_moving_averages": {
+                str(window): _exponential_moving_average(equity_points, window)
+                for window in (20, 50)
+            },
+            "bollinger_bands": {"20": _bollinger_bands(equity_points, 20, 2)},
+            "ohlcv": ohlcv,
         },
         "volume": [
             {"date": point["date"], "value": point.get("volume")}
@@ -130,20 +146,26 @@ def _metric_for_target(
 
 def _price_summary(points):
     closes = [point["close"] for point in points if point.get("close") is not None]
+    highs = [point["high"] for point in points if point.get("high") is not None]
+    lows = [point["low"] for point in points if point.get("low") is not None]
     volumes = [
         point.get("volume") for point in points[-30:]
         if point.get("volume") is not None
     ]
     latest = closes[-1]
     previous = closes[-2] if len(closes) > 1 else None
+    latest_point = points[-1]
     return {
         "latest_close": round(latest, 4),
+        "latest_open": _rounded(latest_point.get("open")),
+        "latest_high": _rounded(latest_point.get("high")),
+        "latest_low": _rounded(latest_point.get("low")),
         "latest_date": points[-1]["date"],
         "daily_change": (
             round((latest / previous - 1) * 100, 2) if previous else None
         ),
-        "period_high": round(max(closes), 4),
-        "period_low": round(min(closes), 4),
+        "period_high": round(max(highs or closes), 4),
+        "period_low": round(min(lows or closes), 4),
         "average_volume_30d": (
             round(sum(volumes) / len(volumes), 2) if volumes else None
         ),
@@ -163,6 +185,59 @@ def _moving_average(points, window):
             "value": round(sum(closes) / window, 4),
         })
     return values
+
+
+def _exponential_moving_average(points, window):
+    closes = [point.get("close") for point in points]
+    if len(closes) < window or any(value is None for value in closes[:window]):
+        return []
+    multiplier = 2 / (window + 1)
+    average = sum(closes[:window]) / window
+    values = [{"date": points[window - 1]["date"], "value": round(average, 4)}]
+    for index in range(window, len(points)):
+        close = closes[index]
+        if close is None:
+            continue
+        average = (close - average) * multiplier + average
+        values.append({"date": points[index]["date"], "value": round(average, 4)})
+    return values
+
+
+def _bollinger_bands(points, window, deviations):
+    values = []
+    for index in range(window - 1, len(points)):
+        closes = [
+            point.get("close") for point in points[index - window + 1:index + 1]
+        ]
+        if any(value is None for value in closes):
+            continue
+        middle = sum(closes) / window
+        variance = sum((value - middle) ** 2 for value in closes) / window
+        spread = math.sqrt(variance) * deviations
+        values.append({
+            "date": points[index]["date"],
+            "middle": round(middle, 4),
+            "upper": round(middle + spread, 4),
+            "lower": round(middle - spread, 4),
+        })
+    return values
+
+
+def _ohlcv_series(points):
+    fields = ("open", "high", "low", "close")
+    return [
+        {
+            "date": point["date"],
+            "open": point["open"], "high": point["high"],
+            "low": point["low"], "close": point["close"],
+            "volume": point.get("volume"),
+        }
+        for point in points
+        if all(_number(point.get(field)) is not None for field in fields)
+        and point["low"] <= min(point["open"], point["close"])
+        and point["high"] >= max(point["open"], point["close"])
+        and point["low"] <= point["high"]
+    ]
 
 
 def _period_returns(points: list[dict], anomalies: list[dict]) -> dict[str, dict]:
@@ -243,7 +318,9 @@ def _adjust_corporate_actions(points: list[dict]) -> tuple[list[dict], list[dict
         status = "verified_adjusted" if explains_jump else "reported_already_adjusted"
         if explains_jump:
             for prior in adjusted[:index]:
-                prior["close"] = round(prior["close"] / split, 6)
+                for field in ("open", "high", "low", "close"):
+                    if prior.get(field) is not None:
+                        prior[field] = round(prior[field] / split, 6)
                 if prior.get("volume") is not None:
                     prior["volume"] = prior["volume"] * split
         events.append({
@@ -277,3 +354,8 @@ def _number(value):
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     return float(value)
+
+
+def _rounded(value):
+    number = _number(value)
+    return round(number, 4) if number is not None else None

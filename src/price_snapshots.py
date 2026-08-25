@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 from pathlib import Path
 import sqlite3
 import zlib
@@ -117,8 +118,14 @@ def _clean_points(rows) -> list[dict]:
         close = _number(row.get("Close"))
         if close is None or close <= 0:
             continue
+        open_price = _positive_number(row.get("Open"))
+        high = _positive_number(row.get("High"))
+        low = _positive_number(row.get("Low"))
         points.append({
             "date": str(row["Date"])[:10],
+            "open": round(open_price, 6) if open_price is not None else None,
+            "high": round(high, 6) if high is not None else None,
+            "low": round(low, 6) if low is not None else None,
             "close": round(close, 6),
             "volume": _number(row.get("Volume")),
             "dividend": _number(row.get("Dividends")) or 0.0,
@@ -138,4 +145,10 @@ def _timestamp(value) -> datetime | None:
 def _number(value) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value)
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _positive_number(value) -> float | None:
+    number = _number(value)
+    return number if number is not None and number > 0 else None

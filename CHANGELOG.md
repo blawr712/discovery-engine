@@ -38,6 +38,11 @@
   constraint, coverage, and missing-data context
 - Added YTD performance, price summaries, 20/50/200-session moving averages,
   chart zoom, crosshairs, and corporate-action annotations
+- Preserved adjusted daily OHLCV in compressed run-linked price snapshots
+- Added candlestick charts, color-coded volume, full OHLCV hover values, and
+  linear/logarithmic price axes
+- Added EMA 20 and Bollinger Band overlays alongside SMA 20/50/200
+- Added explicit OHLCV coverage and close-only legacy chart fallback
 - Fixed Canadian universe refreshes for changing TMX dated metric headers
 - Derived Canadian source dates from each TMX workbook instead of hardcoding May
 

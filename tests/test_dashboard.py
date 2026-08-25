@@ -79,6 +79,10 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("Score anatomy", html)
         self.assertIn("moving_averages", html)
         self.assertIn("Vs benchmark", html)
+        self.assertIn("Candles", html)
+        self.assertIn("exponential_moving_averages", html)
+        self.assertIn("bollinger_bands", html)
+        self.assertIn("Legacy close-only snapshot", html)
         self.assertNotIn("https://", html)
 
     def test_comparison_requires_two_to_five_unique_tickers(self):

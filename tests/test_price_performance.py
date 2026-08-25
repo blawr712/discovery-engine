@@ -33,7 +33,7 @@ class PricePerformanceTests(unittest.TestCase):
         equity = self._snapshot("AAA", [
             ("2026-06-01", 0.4), ("2026-07-20", 4.2),
             ("2026-08-01", 4.5),
-        ])
+        ], include_ohlcv=True)
 
         result = build_price_performance(equity, None)
 
@@ -57,12 +57,41 @@ class PricePerformanceTests(unittest.TestCase):
         self.assertEqual(len(result["series"]["moving_averages"]["20"]), 201)
         self.assertEqual(len(result["series"]["moving_averages"]["50"]), 171)
         self.assertEqual(len(result["series"]["moving_averages"]["200"]), 21)
+        self.assertEqual(
+            len(result["series"]["exponential_moving_averages"]["20"]), 201
+        )
+        self.assertEqual(len(result["series"]["bollinger_bands"]["20"]), 201)
+
+    def test_exposes_adjusted_ohlcv_for_candlestick_charting(self):
+        equity = self._snapshot("AAA", [
+            ("2026-08-01", 100), ("2026-08-02", 105),
+        ], include_ohlcv=True)
+
+        result = build_price_performance(equity, None)
+
+        self.assertTrue(result["capabilities"]["ohlcv"])
+        self.assertEqual(result["capabilities"]["ohlcv_coverage_percent"], 100)
+        self.assertEqual(result["series"]["ohlcv"][1]["open"], 103.95)
+        self.assertEqual(result["series"]["ohlcv"][1]["high"], 107.1)
+        self.assertEqual(result["summary"]["latest_low"], 102.9)
+        self.assertEqual(result["summary"]["period_high"], 107.1)
+        self.assertEqual(result["summary"]["period_low"], 98)
+
+    def test_legacy_close_only_snapshot_disables_candlesticks(self):
+        result = build_price_performance(
+            self._snapshot("AAA", [("2026-08-01", 100), ("2026-08-02", 105)]),
+            None,
+        )
+
+        self.assertFalse(result["capabilities"]["ohlcv"])
+        self.assertTrue(result["capabilities"]["legacy_close_only"])
+        self.assertEqual(result["series"]["ohlcv"], [])
 
     def test_verified_reverse_split_adjusts_prior_prices_and_restores_returns(self):
         equity = self._snapshot("AAA", [
             ("2026-06-01", 0.4), ("2026-07-20", 4.2),
             ("2026-08-01", 4.5),
-        ])
+        ], include_ohlcv=True)
         equity["points"][1]["split"] = 0.1
 
         result = build_price_performance(equity, None)
@@ -70,6 +99,7 @@ class PricePerformanceTests(unittest.TestCase):
         self.assertEqual(result["data_quality"], "verified_adjusted")
         self.assertEqual(result["corporate_actions"][0]["status"], "verified_adjusted")
         self.assertEqual(result["series"]["price"][0]["value"], 4)
+        self.assertEqual(result["series"]["ohlcv"][0]["open"], 3.96)
         self.assertEqual(result["period_returns"]["3M"]["ticker_return"], 12.5)
 
     def test_reported_split_does_not_double_adjust_already_adjusted_prices(self):
@@ -89,9 +119,17 @@ class PricePerformanceTests(unittest.TestCase):
         self.assertEqual(result["series"]["price"][0]["value"], 4)
 
     @staticmethod
-    def _snapshot(ticker, values):
+    def _snapshot(ticker, values, include_ohlcv=False):
         points = [
-            {"date": day, "close": close, "volume": 1000}
+            {
+                "date": day,
+                **({
+                    "open": round(close * .99, 6),
+                    "high": round(close * 1.02, 6),
+                    "low": round(close * .98, 6),
+                } if include_ohlcv else {}),
+                "close": close, "volume": 1000,
+            }
             for day, close in values
         ]
         return {
