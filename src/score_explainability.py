@@ -95,9 +95,20 @@ def explain_candidate(
     rank: int | None,
     discovery_percentile: float | None,
     fundamental_percentile: float | None,
+    candidate_count: int | None = None,
+    discovery_median: float | None = None,
 ) -> dict:
     """Build a dashboard-safe explanation from one stored result row."""
     status = str(row.get("status") or "UNKNOWN")
+    technical_factors = _factor_rows(row.get("factor_breakdown"))
+    fundamental_factors = _factor_rows(row.get("fundamental_breakdown"))
+    technical_confidence = _confidence_card(
+        row.get("score_confidence"), SCORE_GLOSSARY["score_confidence"]
+    )
+    fundamental_confidence = _confidence_card(
+        row.get("fundamental_confidence"),
+        SCORE_GLOSSARY["fundamental_confidence"],
+    )
     return {
         "ticker": row.get("ticker"),
         "company_name": row.get("company_name"),
@@ -118,16 +129,16 @@ def explain_candidate(
             ),
         },
         "confidence": {
-            "technical": _confidence_card(
-                row.get("score_confidence"), SCORE_GLOSSARY["score_confidence"]
-            ),
-            "fundamental": _confidence_card(
-                row.get("fundamental_confidence"),
-                SCORE_GLOSSARY["fundamental_confidence"],
-            ),
+            "technical": technical_confidence,
+            "fundamental": fundamental_confidence,
         },
-        "technical_factors": _factor_rows(row.get("factor_breakdown")),
-        "fundamental_factors": _factor_rows(row.get("fundamental_breakdown")),
+        "technical_factors": technical_factors,
+        "fundamental_factors": fundamental_factors,
+        "score_story": _score_story(
+            row, rank, candidate_count, discovery_median,
+            technical_factors, fundamental_factors,
+            technical_confidence, fundamental_confidence,
+        ),
         "fundamental_data_quality": row.get("fundamental_data_quality"),
         "fundamental_data_as_of": row.get("fundamental_data_as_of"),
         "reason_flags": [
@@ -139,6 +150,125 @@ def explain_candidate(
             "coverage. They are not recommendations, price targets, or return forecasts."
         ),
     }
+
+
+def _score_story(
+    row, rank, candidate_count, discovery_median,
+    technical_factors, fundamental_factors,
+    technical_confidence, fundamental_confidence,
+):
+    technical = _factor_context(technical_factors)
+    fundamental = _factor_context(fundamental_factors)
+    score = _number(row.get("discovery_score"))
+    difference = (
+        round(score - discovery_median, 2)
+        if score is not None and discovery_median is not None else None
+    )
+    if rank is not None and candidate_count:
+        rank_context = (
+            f"Ranks #{rank:,} of {candidate_count:,} successful candidates"
+        )
+    else:
+        rank_context = "Not ranked in the successful candidate pool"
+    if difference is not None:
+        rank_context += (
+            " and is at the run median"
+            if difference == 0 else
+            f" and scores {abs(difference):g} points "
+            f"{'above' if difference > 0 else 'below'} the run median"
+        )
+    driver_labels = [item["label"] for item in technical["drivers"]]
+    constraint_labels = [item["label"] for item in technical["constraints"]]
+    why = (
+        f"{rank_context}. The strongest technical contributions came from "
+        f"{_join_labels(driver_labels)}."
+        if driver_labels else f"{rank_context}. Technical driver detail is unavailable."
+    )
+    holds_back = (
+        "The largest unused technical scoring capacity is in "
+        f"{_join_labels(constraint_labels)}."
+        if constraint_labels else
+        "No material technical constraint is visible in the available factors."
+    )
+    gaps = list(dict.fromkeys(technical["gaps"] + fundamental["gaps"]))
+    reliability = (
+        f"Technical coverage is {_coverage_phrase(technical_confidence)}. "
+        f"Fundamental coverage is {_coverage_phrase(fundamental_confidence)}."
+    )
+    if gaps:
+        reliability += f" Review missing or limited inputs in {_join_labels(gaps[:3])}."
+    return {
+        "why_it_ranks": why,
+        "what_holds_it_back": holds_back,
+        "reliability": reliability,
+        "rank_context": rank_context,
+        "successful_candidate_count": candidate_count,
+        "discovery_median": discovery_median,
+        "score_vs_median": difference,
+        "technical_points": technical["points"],
+        "technical_max_points": technical["max_points"],
+        "drivers": technical["drivers"],
+        "constraints": technical["constraints"],
+        "fundamental_drivers": fundamental["drivers"],
+        "data_gaps": gaps,
+    }
+
+
+def _factor_context(factors):
+    applicable = [
+        factor for factor in factors
+        if factor["applicable"] and factor["max_points"] not in (None, 0)
+    ]
+    scored = [factor for factor in applicable if factor["points"] is not None]
+    enriched = [
+        {
+            "name": factor["name"], "label": factor["label"],
+            "points": factor["points"], "max_points": factor["max_points"],
+            "percent": round(factor["points"] / factor["max_points"] * 100, 2),
+            "explanation": factor["explanation"],
+            "data_quality": factor["data_quality"],
+        }
+        for factor in scored
+    ]
+    ranked = sorted(
+        enriched, key=lambda factor: (-factor["percent"], -factor["points"], factor["name"])
+    )
+    drivers = [factor for factor in ranked if factor["percent"] >= 50][:3]
+    if not drivers and ranked:
+        drivers = ranked[:1]
+    driver_names = {factor["name"] for factor in drivers}
+    constraints = sorted(
+        (factor for factor in enriched if factor["name"] not in driver_names),
+        key=lambda factor: (factor["percent"], -factor["max_points"], factor["name"]),
+    )[:3]
+    gaps = [
+        factor["label"] for factor in applicable
+        if not factor["available"] or factor["points"] is None
+        or factor["data_quality"] in {"missing", "invalid", "stale"}
+    ]
+    return {
+        "points": round(sum(factor["points"] for factor in scored), 2),
+        "max_points": round(sum(factor["max_points"] for factor in applicable), 2),
+        "drivers": drivers,
+        "constraints": constraints,
+        "gaps": gaps,
+    }
+
+
+def _join_labels(labels):
+    if not labels:
+        return "no available factors"
+    if len(labels) == 1:
+        return labels[0]
+    if len(labels) == 2:
+        return f"{labels[0]} and {labels[1]}"
+    return f"{', '.join(labels[:-1])}, and {labels[-1]}"
+
+
+def _coverage_phrase(card):
+    descriptor = card["descriptor"].lower()
+    value = card["value"]
+    return descriptor if value is None else f"{descriptor} ({value:g}%)"
 
 
 def _score_card(value, percentile, glossary):

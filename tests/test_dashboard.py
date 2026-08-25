@@ -69,13 +69,16 @@ class DashboardTests(unittest.TestCase):
     def test_dashboard_asset_is_self_contained(self):
         html = DASHBOARD_HTML.read_text(encoding="utf-8")
 
-        self.assertIn("Discovery history", html)
+        self.assertIn("Research Terminal", html)
         self.assertIn("/api/candidates", html)
         self.assertIn("/api/candidate/", html)
-        self.assertIn("Price performance", html)
+        self.assertIn("adjusted close", html)
         self.assertIn("color-scheme:dark", html)
         self.assertIn("/api/compare", html)
         self.assertIn("/api/watchlists", html)
+        self.assertIn("Score anatomy", html)
+        self.assertIn("moving_averages", html)
+        self.assertIn("Vs benchmark", html)
         self.assertNotIn("https://", html)
 
     def test_comparison_requires_two_to_five_unique_tickers(self):

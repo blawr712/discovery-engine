@@ -39,6 +39,13 @@ def build_price_performance(equity: dict | None, benchmark: dict | None) -> dict
         }
         for period, result in equity_returns.items()
     }
+    metrics["YTD"] = _metric_for_target(
+        equity_points,
+        date(date.fromisoformat(equity_points[-1]["date"]).year, 1, 1),
+        anomalies,
+        benchmark_points,
+        benchmark_anomalies,
+    )
     common_start = max(
         equity_points[0]["date"],
         benchmark_points[0]["date"] if benchmark_points else equity_points[0]["date"],
@@ -54,6 +61,7 @@ def build_price_performance(equity: dict | None, benchmark: dict | None) -> dict
         "end_date": equity["end_date"],
         "point_count": equity["point_count"],
         "source_mtime": equity["source_mtime"],
+        "summary": _price_summary(equity_points),
         "period_returns": metrics,
         "data_quality": (
             "unresolved_discontinuity" if anomalies
@@ -72,6 +80,10 @@ def build_price_performance(equity: dict | None, benchmark: dict | None) -> dict
             ],
             "ticker": _normalized(equity_points, common_start),
             "benchmark": _normalized(benchmark_points, common_start),
+            "moving_averages": {
+                str(window): _moving_average(equity_points, window)
+                for window in (20, 50, 200)
+            },
         },
         "volume": [
             {"date": point["date"], "value": point.get("volume")}
@@ -82,6 +94,75 @@ def build_price_performance(equity: dict | None, benchmark: dict | None) -> dict
             "linked to this run; past performance is not a forecast."
         ),
     }
+
+
+def _metric_for_target(
+    equity_points, target, anomalies, benchmark_points, benchmark_anomalies,
+):
+    start, ticker_return = _return_from(equity_points, target)
+    crossed = [
+        anomaly for anomaly in anomalies
+        if start is not None and anomaly["date"] > start["date"]
+    ]
+    benchmark_return = None
+    if benchmark_points:
+        benchmark_start, benchmark_return = _return_from(benchmark_points, target)
+        benchmark_crossed = [
+            anomaly for anomaly in benchmark_anomalies
+            if benchmark_start is not None and anomaly["date"] > benchmark_start["date"]
+        ]
+        if benchmark_crossed:
+            benchmark_return = None
+    reliable = not crossed and ticker_return is not None
+    if crossed:
+        ticker_return = None
+    return {
+        "ticker_return": ticker_return,
+        "benchmark_return": benchmark_return,
+        "relative_return": _difference(ticker_return, benchmark_return),
+        "reliable": reliable,
+        "warning": (
+            "Possible split or corporate action crosses this period"
+            if crossed else None
+        ),
+    }
+
+
+def _price_summary(points):
+    closes = [point["close"] for point in points if point.get("close") is not None]
+    volumes = [
+        point.get("volume") for point in points[-30:]
+        if point.get("volume") is not None
+    ]
+    latest = closes[-1]
+    previous = closes[-2] if len(closes) > 1 else None
+    return {
+        "latest_close": round(latest, 4),
+        "latest_date": points[-1]["date"],
+        "daily_change": (
+            round((latest / previous - 1) * 100, 2) if previous else None
+        ),
+        "period_high": round(max(closes), 4),
+        "period_low": round(min(closes), 4),
+        "average_volume_30d": (
+            round(sum(volumes) / len(volumes), 2) if volumes else None
+        ),
+    }
+
+
+def _moving_average(points, window):
+    values = []
+    for index in range(window - 1, len(points)):
+        closes = [
+            point.get("close") for point in points[index - window + 1:index + 1]
+        ]
+        if any(value is None for value in closes):
+            continue
+        values.append({
+            "date": points[index]["date"],
+            "value": round(sum(closes) / window, 4),
+        })
+    return values
 
 
 def _period_returns(points: list[dict], anomalies: list[dict]) -> dict[str, dict]:

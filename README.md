@@ -82,6 +82,12 @@ newer than the run are rejected. Candidate details display 1W, 1M, 3M, 6M, and
 all from the read-only local history database. The dashboard uses dark mode by
 default.
 
+The dashboard presents each candidate as a plain-language Score Story: its rank
+within the successful-candidate pool, distance from the run median, strongest
+technical drivers, largest unused factor capacity, and separate technical and
+fundamental coverage. These descriptions explain the configured screen; they do
+not predict returns or make investment recommendations.
+
 Charts default to the stored adjusted closing price. `Compare %` rebases the
 stock and its country benchmark to 0% at the selected period's start. U.S.
 equities use SPY (the S&P 500 ETF) and Canadian equities use XIU.TO (the
@@ -94,6 +100,11 @@ declared split explains a discontinuity, the dashboard adjusts pre-event prices
 and volume into a consistent basis; already-adjusted histories are left alone.
 Charts label their price-data quality as clean, verified, verified adjusted, or
 unresolved, and the dashboard reports snapshot coverage for the latest run.
+
+The candidate chart workspace also provides YTD performance, latest-price and
+volume context, optional 20/50/200-session moving averages, a zoom control,
+crosshair values, and split/dividend markers. Actual adjusted close remains
+separate from the benchmark-relative percentage view.
 
 The dashboard candidate-comparison workspace accepts two to five comma-separated
 tickers from the selected run. It aligns ranks, scores, percentile descriptors,

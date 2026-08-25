@@ -33,6 +33,11 @@
 - Added multi-ticker normalized performance charts and factor-strength heatmaps
 - Added persistent named dashboard watchlists isolated from indexed history
 - Added tracked status, rank, and score changes versus the prior indexed run
+- Redesigned the dashboard as a responsive fintech research terminal
+- Added plain-language Score Story summaries with rank, median, driver,
+  constraint, coverage, and missing-data context
+- Added YTD performance, price summaries, 20/50/200-session moving averages,
+  chart zoom, crosshairs, and corporate-action annotations
 - Fixed Canadian universe refreshes for changing TMX dated metric headers
 - Derived Canadian source dates from each TMX workbook instead of hardcoding May
 

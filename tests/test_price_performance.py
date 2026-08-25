@@ -1,4 +1,5 @@
 import unittest
+from datetime import date, timedelta
 
 from src.price_performance import build_price_performance
 
@@ -19,6 +20,10 @@ class PricePerformanceTests(unittest.TestCase):
         self.assertEqual(result["period_returns"]["1Y"]["ticker_return"], 50)
         self.assertEqual(result["period_returns"]["1Y"]["benchmark_return"], 25)
         self.assertEqual(result["period_returns"]["1Y"]["relative_return"], 25)
+        self.assertIn("YTD", result["period_returns"])
+        self.assertEqual(result["summary"]["latest_close"], 150)
+        self.assertEqual(result["summary"]["period_high"], 150)
+        self.assertIn("20", result["series"]["moving_averages"])
         self.assertEqual(result["series"]["ticker"][0]["value"], 100)
         self.assertEqual(result["series"]["ticker"][-1]["value"], 150)
         self.assertIn("S&P 500", result["benchmark_definition"])
@@ -39,6 +44,19 @@ class PricePerformanceTests(unittest.TestCase):
 
     def test_missing_equity_snapshot_returns_none(self):
         self.assertIsNone(build_price_performance(None, None))
+
+    def test_builds_standard_moving_average_series(self):
+        start = date(2025, 8, 1)
+        values = [
+            ((start + timedelta(days=index)).isoformat(), 100 + index)
+            for index in range(220)
+        ]
+
+        result = build_price_performance(self._snapshot("AAA", values), None)
+
+        self.assertEqual(len(result["series"]["moving_averages"]["20"]), 201)
+        self.assertEqual(len(result["series"]["moving_averages"]["50"]), 171)
+        self.assertEqual(len(result["series"]["moving_averages"]["200"]), 21)
 
     def test_verified_reverse_split_adjusts_prior_prices_and_restores_returns(self):
         equity = self._snapshot("AAA", [

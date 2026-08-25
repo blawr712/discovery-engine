@@ -188,6 +188,8 @@ class DashboardStore:
                 ranks.get(str(row.get("ticker"))),
                 discovery.get(str(row.get("ticker"))),
                 fundamental.get(str(row.get("ticker"))),
+                candidate_count=len(ranks),
+                discovery_median=_score_median(rows, "discovery_score"),
             ),
             "history": self.ticker_history(ticker),
             "glossary": SCORE_GLOSSARY,
@@ -229,6 +231,7 @@ class DashboardStore:
             ranks = _candidate_ranks({str(row.get("ticker")): row for row in rows})
             discovery = score_percentiles(rows, "discovery_score")
             fundamental = score_percentiles(rows, "fundamental_score_normalized")
+            discovery_median = _score_median(rows, "discovery_score")
             details = []
             for ticker in normalized:
                 row = lookup[ticker]
@@ -236,6 +239,8 @@ class DashboardStore:
                     row, ranks.get(str(row.get("ticker"))),
                     discovery.get(str(row.get("ticker"))),
                     fundamental.get(str(row.get("ticker"))),
+                    candidate_count=len(ranks),
+                    discovery_median=discovery_median,
                 )
                 equity = load_price_snapshot(connection, run_id, ticker)
                 benchmark_ticker = BENCHMARKS.get(str(row.get("country") or ""))
@@ -587,3 +592,19 @@ def _watchlist_warnings(selected_run, previous_run):
             "Universe sizes differ; presence and rank changes may not be directly comparable."
         )
     return warnings
+
+
+def _score_median(rows, field):
+    values = sorted(
+        float(row[field]) for row in rows
+        if row.get("status") == "OK" and isinstance(row.get(field), (int, float))
+        and not isinstance(row.get(field), bool)
+    )
+    if not values:
+        return None
+    middle = len(values) // 2
+    value = (
+        values[middle] if len(values) % 2
+        else (values[middle - 1] + values[middle]) / 2
+    )
+    return round(value, 2)

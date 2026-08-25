@@ -40,13 +40,51 @@ class ScoreExplainabilityTests(unittest.TestCase):
             "fundamental_breakdown": "{}",
         }
 
-        explanation = explain_candidate(row, 4, 92, 70)
+        explanation = explain_candidate(
+            row, 4, 92, 70, candidate_count=100, discovery_median=55,
+        )
 
         self.assertEqual(explanation["scores"]["discovery"]["descriptor"], "Strong")
         self.assertEqual(explanation["confidence"]["technical"]["descriptor"], "High coverage")
         self.assertEqual(explanation["confidence"]["fundamental"]["descriptor"], "Limited coverage")
         self.assertEqual(explanation["technical_factors"][0]["points"], 15)
+        self.assertEqual(explanation["score_story"]["score_vs_median"], 17)
+        self.assertIn("Ranks #4 of 100", explanation["score_story"]["why_it_ranks"])
+        self.assertEqual(
+            explanation["score_story"]["drivers"][0]["label"], "Trend Strength"
+        )
         self.assertIn("not recommendations", explanation["interpretation_warning"])
+
+    def test_score_story_identifies_constraints_and_data_gaps(self):
+        row = {
+            "ticker": "TEST", "status": "OK", "discovery_score": 60,
+            "score_confidence": 70, "fundamental_confidence": 20,
+            "factor_breakdown": json.dumps({
+                "trend": {"points": 10, "max_points": 10, "available": True},
+                "liquidity": {"points": 1, "max_points": 10, "available": True},
+                "volume": {"points": None, "max_points": 10, "available": False,
+                           "data_quality": "missing"},
+            }),
+            "fundamental_breakdown": "{}",
+        }
+
+        story = explain_candidate(row, 10, 50, None, 50, 55)["score_story"]
+
+        self.assertEqual(story["constraints"][0]["label"], "Liquidity")
+        self.assertIn("Volume", story["data_gaps"])
+        self.assertIn("limited inputs", story["reliability"])
+
+    def test_score_story_handles_unavailable_coverage_and_median_tie(self):
+        row = {
+            "ticker": "TEST", "status": "OK", "discovery_score": 55,
+            "score_confidence": None, "fundamental_confidence": None,
+            "factor_breakdown": "{}", "fundamental_breakdown": "{}",
+        }
+
+        story = explain_candidate(row, 1, 100, None, 1, 55)["score_story"]
+
+        self.assertIn("at the run median", story["rank_context"])
+        self.assertNotIn("unavailable%", story["reliability"])
 
     def test_confidence_descriptors_use_documented_coverage_bands(self):
         self.assertEqual(confidence_descriptor(75), "High coverage")
