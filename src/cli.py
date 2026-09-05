@@ -41,6 +41,11 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         help="build the offline Moonshot Discovery shadow analysis",
     )
     selection.add_argument(
+        "--calibrate-moonshot",
+        metavar="RUN_ID",
+        help="validate Moonshot scenarios and freeze a forward baseline",
+    )
+    selection.add_argument(
         "--research-run",
         metavar="RUN_ID",
         help="build research packets from a completed saved run",

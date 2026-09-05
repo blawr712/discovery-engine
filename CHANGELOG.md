@@ -63,6 +63,16 @@
   missing value
 - Added a configurable 99% synchronized-cohort gate with explicit residual
   exclusions for Moonshot calibration
+- Added offline Moonshot calibration across baseline, growth, survival, and
+  trading-viability weighting scenarios
+- Added top-list overlap, rank-sensitivity, factor-distribution, outlier, and
+  country/size/sector cohort analytics
+- Added hard data-integrity gates and configurable cohort-dispersion review
+  gates without imposing country or size quotas
+- Added candidate-level upside-driver, risk-driver, warning, and sensitivity
+  validation exports
+- Added immutable all-cohort forward-test baselines with fixed 1M, 3M, 6M,
+  and 1Y eligibility dates
 
 ## v0.3.0 Intelligence — 2026-08-09
 

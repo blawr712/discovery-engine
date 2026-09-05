@@ -9,6 +9,7 @@ from src.run_state import (
     build_run_fingerprint,
     load_saved_run,
     record_moonshot_analysis,
+    record_moonshot_calibration,
     record_recalibration,
     record_research_packets,
     record_research_audit,
@@ -331,6 +332,30 @@ class RunStateTests(unittest.TestCase):
         self.assertTrue(
             manifest["moonshot_artifacts"]["official_scores_and_ranks_unchanged"]
         )
+
+    def test_records_moonshot_calibration_provenance(self):
+        state = RunState.start_or_resume(
+            self.root, "fingerprint", 1, clock=self.clock,
+        )
+        state.record_result(0, {"ticker": "ONE", "status": "OK"})
+        state.complete([{"ticker": "ONE", "status": "OK"}], "report.csv")
+
+        record_moonshot_calibration(
+            self.root,
+            state.run_id,
+            {
+                "automated_status": "pass",
+                "baseline_id": "baseline-1",
+                "moonshot_calibration_json_path": "calibration.json",
+            },
+            clock=self.clock,
+        )
+        with state.manifest_path.open("r", encoding="utf-8") as file:
+            manifest = json.load(file)
+
+        artifacts = manifest["moonshot_calibration_artifacts"]
+        self.assertEqual(artifacts["automated_status"], "pass")
+        self.assertEqual(artifacts["baseline_id"], "baseline-1")
 
     def test_records_research_audit_provenance(self):
         state = RunState.start_or_resume(self.root, "fingerprint", 1, clock=self.clock)

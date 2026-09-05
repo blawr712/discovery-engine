@@ -263,7 +263,66 @@
         "pending_data_requirements": [
             "bid-ask spread and trading-impact estimates",
             "financing, ATM, and shelf-registration events"
-        ]
+        ],
+        "calibration": {
+            "minimum_top_25_overlap_percent": 60,
+            "sensitive_rank_range": 50,
+            "maximum_sensitive_top_25_candidates": 5,
+            "maximum_country_selection_rate_ratio": 2.5,
+            "maximum_size_tier_selection_rate_ratio": 2.5,
+            "scenarios": {
+                "baseline": {
+                    "upside_multipliers": {},
+                    "risk_multipliers": {}
+                },
+                "growth_emphasis": {
+                    "upside_multipliers": {
+                        "revenue_growth": 1.4,
+                        "earnings_growth": 1.3,
+                        "profitability": 0.9,
+                        "cash_generation": 0.8,
+                        "sales_valuation": 0.8,
+                        "market_cap_headroom": 0.8
+                    },
+                    "risk_multipliers": {}
+                },
+                "survival_first": {
+                    "upside_multipliers": {
+                        "revenue_growth": 0.9,
+                        "earnings_growth": 0.9,
+                        "profitability": 1.2,
+                        "cash_generation": 1.3,
+                        "market_cap_headroom": 0.8
+                    },
+                    "risk_multipliers": {
+                        "cash_runway": 1.4,
+                        "balance_sheet": 1.3,
+                        "profitability": 1.2,
+                        "leverage": 1.2,
+                        "dilution": 1.2,
+                        "reverse_splits": 1.2,
+                        "volatility": 0.8,
+                        "maximum_drawdown": 0.8
+                    }
+                },
+                "trading_viability": {
+                    "upside_multipliers": {},
+                    "risk_multipliers": {
+                        "size_fragility": 0.75,
+                        "cash_runway": 0.75,
+                        "balance_sheet": 0.75,
+                        "profitability": 0.75,
+                        "leverage": 0.75,
+                        "disclosure_gaps": 0.75,
+                        "liquidity": 2.0,
+                        "volatility": 1.5,
+                        "maximum_drawdown": 1.5,
+                        "dilution": 1.2,
+                        "reverse_splits": 1.5
+                    }
+                }
+            }
+        }
     },
 
     "reports": {

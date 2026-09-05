@@ -108,6 +108,16 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--moonshot-run", "run-123", "--moonshot-limit", "10"])
 
+    def test_moonshot_calibration_is_an_exclusive_offline_action(self):
+        args = parse_args(["--calibrate-moonshot", "run-123"])
+
+        self.assertEqual(args.calibrate_moonshot, "run-123")
+        with self.assertRaises(SystemExit):
+            parse_args([
+                "--calibrate-moonshot", "run-123",
+                "--moonshot-run", "run-123",
+            ])
+
     def test_research_run_accepts_top_and_rejects_top_alone(self):
         args = parse_args(["--research-run", "run-123", "--top", "5"])
 

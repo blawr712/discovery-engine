@@ -235,6 +235,30 @@ Moonshot ranks as one synchronized research cohort.
 The comparability gate requires at least 99% synchronized evidence by default
 and always lists the residual excluded tickers and reasons.
 
+Stress-test a comparable Moonshot cohort entirely offline and freeze it for
+forward validation:
+
+```powershell
+python main.py --calibrate-moonshot RUN_ID
+```
+
+The command compares the baseline model with growth-emphasis,
+survival-first, and trading-viability scenarios; reports top-list overlap,
+rank sensitivity, factor distributions, outliers, and country, size, and
+sector selection rates; and exports plain-language driver and risk summaries
+for selected candidates. Configurable review gates identify material cohort
+selection-rate differences without imposing country quotas or changing any
+rank. A failed review gate produces `needs_review`; a data-integrity failure
+produces `fail`.
+
+For a synchronized cohort, the same command creates an immutable forward-test
+baseline containing every comparable Moonshot candidate, including low-signal
+control groups. Its fixed 1-month, 3-month, 6-month, and 1-year eligibility
+dates prevent premature outcome evaluation. Re-running the command may
+recreate identical files, but it refuses to overwrite a changed baseline with
+the same run and model identity. Calibration measures structural stability and
+data quality; it is not evidence of future returns.
+
 Passing weighted scenarios are compared before one controls the v0.3 research
 queue. The comparison exports consensus rank, rank sensitivity, and candidate
 agreement at several cutoffs. The configured 80% technical / 20% fundamental

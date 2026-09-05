@@ -23,6 +23,7 @@ from src.run_state import (
     load_saved_manifest,
     record_recalibration,
     record_moonshot_analysis,
+    record_moonshot_calibration,
     record_research_packets,
     record_research_audit,
     record_research_acceptance,
@@ -59,6 +60,12 @@ from src.moonshot_market import (
     export_market_risk_evidence,
     load_market_risk_evidence,
     load_run_compatible_price_evidence,
+)
+from src.moonshot_calibration import (
+    build_forward_baseline,
+    build_moonshot_calibration,
+    export_forward_baseline,
+    export_moonshot_calibration,
 )
 from src.cli import parse_args, select_universe
 from src.config import (
@@ -168,6 +175,9 @@ def main(arguments=None):
             source=(build_market_data_source() if args.collect_market_risk else None),
             collection_limit=args.moonshot_limit,
         )
+        return
+    if args.calibrate_moonshot:
+        calibrate_saved_moonshot(args.calibrate_moonshot)
         return
     if args.audit_research:
         audit_saved_research(args.audit_research)
@@ -562,6 +572,68 @@ def analyze_moonshot_run(
     print(f"Candidate CSV saved to: {csv_path}")
     print(f"Analysis JSON saved to: {json_path}")
     print(f"Market evidence saved to: {market_evidence_path}")
+    print(f"Manifest updated: {manifest_path}")
+
+
+def calibrate_saved_moonshot(run_id: str) -> None:
+    """Calibrate saved Moonshot evidence without market or AI providers."""
+    try:
+        manifest, results = load_saved_run(RUN_DIR, run_id)
+        market_evidence = load_market_risk_evidence(OUTPUT_DIR, run_id)
+        if not market_evidence:
+            raise ValueError(
+                "No saved Moonshot market evidence; run --moonshot-run first."
+            )
+        analysis = build_moonshot_analysis(
+            results,
+            run_id,
+            manifest.get("completed_at"),
+            market_evidence=market_evidence,
+        )
+        calibration = build_moonshot_calibration(analysis)
+        scenario_csv, calibration_json, validation_csv = (
+            export_moonshot_calibration(calibration, OUTPUT_DIR)
+        )
+        baseline = build_forward_baseline(analysis)
+        baseline_csv, baseline_json = export_forward_baseline(
+            baseline, OUTPUT_DIR,
+        )
+        manifest_path = record_moonshot_calibration(
+            RUN_DIR,
+            run_id,
+            {
+                "model_version": analysis["model_version"],
+                "automated_status": calibration["automated_status"],
+                "scenario_count": len(calibration["scenarios"]),
+                "baseline_id": baseline["baseline_id"],
+                "baseline_candidate_count": baseline["candidate_count"],
+                "official_scores_and_ranks_unchanged": True,
+                "moonshot_calibration_csv_path": str(scenario_csv),
+                "moonshot_calibration_json_path": str(calibration_json),
+                "moonshot_validation_csv_path": str(validation_csv),
+                "moonshot_forward_baseline_csv_path": str(baseline_csv),
+                "moonshot_forward_baseline_json_path": str(baseline_json),
+            },
+        )
+    except (FileNotFoundError, OSError, TypeError, ValueError) as error:
+        raise SystemExit(f"Unable to calibrate Moonshot analysis: {error}") from error
+    gates_passed = sum(
+        gate["passed"] for gate in calibration["validation_gates"]
+    )
+    gates_total = len(calibration["validation_gates"])
+    print(f"Offline Moonshot calibration complete for run: {run_id}")
+    print(f"Automated status: {calibration['automated_status']}")
+    print(f"Scenarios tested: {len(calibration['scenarios'])}")
+    print(f"Validation gates passed: {gates_passed}/{gates_total}")
+    for gate in calibration["validation_gates"]:
+        print(f"[{'PASS' if gate['passed'] else 'FAIL'}] {gate['name']}: {gate['actual']}")
+    print(f"Forward baseline candidates: {baseline['candidate_count']}")
+    print("Official Discovery and Moonshot ranks: unchanged")
+    print(f"Calibration rows saved to: {scenario_csv}")
+    print(f"Calibration analysis saved to: {calibration_json}")
+    print(f"Candidate validation saved to: {validation_csv}")
+    print(f"Forward baseline CSV saved to: {baseline_csv}")
+    print(f"Forward baseline JSON saved to: {baseline_json}")
     print(f"Manifest updated: {manifest_path}")
 
 
