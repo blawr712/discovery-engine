@@ -59,6 +59,10 @@
   price/share history and existing provider safety controls
 - Blocked Moonshot watch and priority labels until market-risk coverage is
   sufficient, with unresolved risk bands for incomplete evidence
+- Treated zero trading volume as valid maximum liquidity risk instead of a
+  missing value
+- Added a configurable 99% synchronized-cohort gate with explicit residual
+  exclusions for Moonshot calibration
 
 ## v0.3.0 Intelligence — 2026-08-09
 

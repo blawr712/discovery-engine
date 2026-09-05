@@ -134,6 +134,62 @@ class MoonshotTests(unittest.TestCase):
         self.assertEqual(candidate["risk_band"], "unresolved")
         self.assertEqual(candidate["market_risk_confidence"], 0)
 
+    def test_zero_dollar_volume_is_available_and_maximum_liquidity_risk(self):
+        row = self._row(
+            "ILLIQUID", 5_000_000, revenue_growth=.6, earnings_growth=.6,
+            operating_margin=.25, operating_cash_flow=2_000_000,
+            free_cash_flow=1_000_000, total_cash=5_000_000,
+            total_debt=0, debt_to_equity=0, price_to_sales=.8,
+        )
+        evidence = self._market(average_dollar_volume_30d=0)
+
+        candidate = build_moonshot_analysis(
+            [row], "run-1", self.COMPLETED_AT,
+            market_evidence={"ILLIQUID": evidence},
+        )["candidates"][0]
+        liquidity = next(
+            factor for factor in candidate["risk_factors"]
+            if factor["name"] == "liquidity"
+        )
+
+        self.assertTrue(liquidity["available"])
+        self.assertEqual(liquidity["points"], liquidity["max_points"])
+        self.assertEqual(candidate["market_risk_confidence"], 100)
+        self.assertNotIn("Trading liquidity", candidate["missing_inputs"])
+
+    def test_comparable_cohort_allows_explicit_residual_exclusion(self):
+        rows = [
+            self._row(f"T{index:03d}", 5_000_000)
+            for index in range(100)
+        ]
+        evidence = {
+            row["ticker"]: self._market()
+            for row in rows[:99]
+        }
+
+        summary = build_moonshot_analysis(
+            rows,
+            "run-1",
+            self.COMPLETED_AT,
+            market_evidence=evidence,
+        )["market_evidence_summary"]
+
+        self.assertEqual(summary["coverage_percent"], 99)
+        self.assertEqual(summary["minimum_coverage_percent"], 99)
+        self.assertTrue(summary["cross_section_comparable"])
+        self.assertEqual(
+            summary["excluded_candidates"],
+            [{"ticker": "T099", "reason": "unavailable_market_evidence"}],
+        )
+        below_threshold = build_moonshot_analysis(
+            rows,
+            "run-1",
+            self.COMPLETED_AT,
+            market_evidence={key: value for key, value in evidence.items()
+                             if key != "T098"},
+        )["market_evidence_summary"]
+        self.assertFalse(below_threshold["cross_section_comparable"])
+
     def test_exports_deterministic_csv_and_json_artifacts(self):
         analysis = build_moonshot_analysis(
             [self._row("ONE", 5_000_000)], "run-1", self.COMPLETED_AT,
@@ -156,6 +212,16 @@ class MoonshotTests(unittest.TestCase):
         config["upside_weights"]["revenue_growth"] = 24
 
         with self.assertRaisesRegex(ValueError, "must total 100"):
+            build_moonshot_analysis(
+                [self._row("ONE", 5_000_000)],
+                "run-1", self.COMPLETED_AT, config,
+            )
+
+    def test_rejects_invalid_cross_section_coverage_threshold(self):
+        config = copy.deepcopy(MOONSHOT_CONFIG)
+        config["minimum_cross_section_coverage_percent"] = 101
+
+        with self.assertRaisesRegex(ValueError, "coverage threshold"):
             build_moonshot_analysis(
                 [self._row("ONE", 5_000_000)],
                 "run-1", self.COMPLETED_AT, config,

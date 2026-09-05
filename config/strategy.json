@@ -232,6 +232,7 @@
         "undated_confidence_ratio": 0.75,
         "minimum_classification_confidence": 50,
         "minimum_market_risk_confidence": 70,
+        "minimum_cross_section_coverage_percent": 99,
         "priority_confidence_minimum": 80,
         "priority_upside_minimum": 75,
         "priority_risk_maximum": 35,

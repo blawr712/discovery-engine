@@ -232,6 +232,8 @@ Bounded collections are intended for smoke testing and may mix capture dates;
 the analysis reports whether coverage and capture timing are sufficient for a
 cross-sectionally comparable universe. Use a full collection before comparing
 Moonshot ranks as one synchronized research cohort.
+The comparability gate requires at least 99% synchronized evidence by default
+and always lists the residual excluded tickers and reasons.
 
 Passing weighted scenarios are compared before one controls the v0.3 research
 queue. The comparison exports consensus rank, rank sensitivity, and candidate

@@ -90,7 +90,9 @@ def build_moonshot_analysis(
         "market_cap_policy": settings["market_cap"],
         "pending_data_requirements": settings["pending_data_requirements"],
         "summary": _summary(candidates),
-        "market_evidence_summary": _market_evidence_summary(candidates),
+        "market_evidence_summary": _market_evidence_summary(
+            candidates, settings,
+        ),
         "factor_coverage": {
             "upside": _factor_coverage(candidates, "upside_factors"),
             "risk": _factor_coverage(candidates, "risk_factors"),
@@ -276,7 +278,7 @@ def _risk_factors(row, market_cap, config, usable, market_evidence):
         row.get("price_to_sales"),
     )
     missing_ratio = sum(_number(value) is None for value in disclosure_values) / len(disclosure_values)
-    dollar_volume = _positive_number(
+    dollar_volume = _nonnegative_number(
         market_evidence.get("average_dollar_volume_30d")
     )
     volatility = _nonnegative_number(
@@ -421,11 +423,19 @@ def _summary(candidates):
     }
 
 
-def _market_evidence_summary(candidates):
+def _market_evidence_summary(candidates, config):
     covered = [
         row for row in candidates
         if row["market_data_status"] != "unavailable"
     ]
+    excluded = sorted([
+        {
+            "ticker": row["ticker"],
+            "reason": "unavailable_market_evidence",
+        }
+        for row in candidates
+        if row["market_data_status"] == "unavailable"
+    ], key=lambda row: row["ticker"])
     timestamps = []
     for row in covered:
         try:
@@ -438,13 +448,19 @@ def _market_evidence_summary(candidates):
         round((last - first).total_seconds() / 86400, 2)
         if first is not None and last is not None else None
     )
-    complete_coverage = len(covered) == len(candidates) and bool(candidates)
+    coverage_percent = (
+        round(len(covered) / len(candidates) * 100, 2)
+        if candidates else 0.0
+    )
+    minimum_coverage = float(
+        config["minimum_cross_section_coverage_percent"]
+    )
+    synchronized = len(timestamps) == len(covered)
     return {
         "covered_candidates": len(covered),
-        "coverage_percent": (
-            round(len(covered) / len(candidates) * 100, 2)
-            if candidates else 0.0
-        ),
+        "coverage_percent": coverage_percent,
+        "minimum_coverage_percent": minimum_coverage,
+        "excluded_candidates": excluded,
         "sources": _counts(
             row.get("market_data_source") or "UNKNOWN" for row in covered
         ),
@@ -452,7 +468,11 @@ def _market_evidence_summary(candidates):
         "last_captured_at": last.isoformat() if last is not None else None,
         "capture_span_days": span_days,
         "cross_section_comparable": (
-            complete_coverage and span_days is not None and span_days <= 7
+            bool(candidates)
+            and coverage_percent >= minimum_coverage
+            and synchronized
+            and span_days is not None
+            and span_days <= 7
         ),
     }
 
@@ -484,6 +504,7 @@ def _validated_config(config):
         "model_version", "market_cap", "maximum_fundamental_age_days",
         "undated_confidence_ratio", "minimum_classification_confidence",
         "minimum_market_risk_confidence",
+        "minimum_cross_section_coverage_percent",
         "priority_confidence_minimum",
         "priority_upside_minimum", "priority_risk_maximum",
         "watch_upside_minimum", "watch_risk_maximum",
@@ -496,6 +517,11 @@ def _validated_config(config):
     policy = config["market_cap"]
     if not policy["minimum"] < policy["nano_cap_maximum"] < policy["maximum"]:
         raise ValueError("Moonshot market-cap thresholds must increase.")
+    coverage_minimum = float(config["minimum_cross_section_coverage_percent"])
+    if not 0 < coverage_minimum <= 100:
+        raise ValueError(
+            "Moonshot cross-section coverage threshold must be within (0, 100]."
+        )
     for name in ("upside_weights", "risk_weights"):
         if round(sum(config[name].values()), 6) != 100:
             raise ValueError(f"Moonshot {name} must total 100.")

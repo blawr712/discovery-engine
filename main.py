@@ -503,6 +503,12 @@ def analyze_moonshot_run(
                 "market_cross_section_comparable": market_summary[
                     "cross_section_comparable"
                 ],
+                "market_minimum_cross_section_coverage_percent": market_summary[
+                    "minimum_coverage_percent"
+                ],
+                "market_excluded_candidates": market_summary[
+                    "excluded_candidates"
+                ],
                 "official_scores_and_ranks_unchanged": True,
                 "moonshot_candidates_csv_path": str(csv_path),
                 "moonshot_analysis_json_path": str(json_path),
@@ -530,6 +536,13 @@ def analyze_moonshot_run(
         "Cross-section comparable: "
         f"{'yes' if market_summary['cross_section_comparable'] else 'no'}"
     )
+    if market_summary["excluded_candidates"]:
+        print(
+            "Excluded from market cohort: "
+            + ", ".join(
+                row["ticker"] for row in market_summary["excluded_candidates"]
+            )
+        )
     print(
         "Run-compatible price cache: "
         f"{cache_stats['loaded']} loaded, {cache_stats['missing']} missing, "
