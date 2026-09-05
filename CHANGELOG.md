@@ -45,6 +45,12 @@
 - Added explicit OHLCV coverage and close-only legacy chart fallback
 - Fixed Canadian universe refreshes for changing TMX dated metric headers
 - Derived Canadian source dates from each TMX workbook instead of hardcoding May
+- Added an offline Moonshot Discovery lane for $2M–$50M operating equities
+- Added separate Upside Potential, Risk of Ruin, confidence, and missing-data
+  analytics without changing official scores or ranks
+- Added deterministic Moonshot CSV/JSON exports and manifest provenance
+- Added nano-cap/micro-cap cohorts and explicit pending liquidity, drawdown,
+  dilution, and reverse-split requirements
 
 ## v0.3.0 Intelligence — 2026-08-09
 

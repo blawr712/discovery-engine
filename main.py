@@ -22,6 +22,7 @@ from src.run_state import (
     load_saved_run,
     load_saved_manifest,
     record_recalibration,
+    record_moonshot_analysis,
     record_research_packets,
     record_research_audit,
     record_research_acceptance,
@@ -52,6 +53,7 @@ from src.history_reporting import (
     export_weekly_report,
 )
 from src.dashboard import run_dashboard
+from src.moonshot import build_moonshot_analysis, export_moonshot_analysis
 from src.cli import parse_args, select_universe
 from src.config import (
     BENCHMARKS,
@@ -124,6 +126,9 @@ def main(arguments=None):
         return
     if args.recalibrate_run:
         recalibrate_saved_run(args.recalibrate_run)
+        return
+    if args.moonshot_run:
+        analyze_moonshot_run(args.moonshot_run)
         return
     if args.audit_research:
         audit_saved_research(args.audit_research)
@@ -420,6 +425,43 @@ def recalibrate_saved_run(run_id: str) -> None:
         "Selected v0.3 research queue saved to: "
         f"{research['selected_research_report_path']}"
     )
+    print(f"Manifest updated: {manifest_path}")
+
+
+def analyze_moonshot_run(run_id: str) -> None:
+    """Build the Moonshot shadow lane without initializing any provider."""
+    try:
+        manifest, results = load_saved_run(RUN_DIR, run_id)
+        analysis = build_moonshot_analysis(
+            results, run_id, manifest.get("completed_at"),
+        )
+        csv_path, json_path = export_moonshot_analysis(analysis, OUTPUT_DIR)
+        summary = analysis["summary"]
+        manifest_path = record_moonshot_analysis(
+            RUN_DIR,
+            run_id,
+            {
+                "model_version": analysis["model_version"],
+                "source_fingerprint": manifest.get("fingerprint"),
+                "source_completed_at": manifest.get("completed_at"),
+                "candidate_count": summary["candidate_count"],
+                "nano_cap_count": summary["nano_cap_count"],
+                "official_scores_and_ranks_unchanged": True,
+                "moonshot_candidates_csv_path": str(csv_path),
+                "moonshot_analysis_json_path": str(json_path),
+            },
+        )
+    except (FileNotFoundError, OSError, TypeError, ValueError) as error:
+        raise SystemExit(f"Unable to build Moonshot analysis: {error}") from error
+    print(f"Offline Moonshot Discovery complete for run: {run_id}")
+    print(f"Model: {analysis['model_version']}")
+    print(f"Eligible candidates: {summary['candidate_count']}")
+    print(f"Sub-$10M nano-cap candidates: {summary['nano_cap_count']}")
+    for name, count in summary["classifications"].items():
+        print(f"{name.replace('_', ' ').title()}: {count}")
+    print("Official Discovery scores and ranks: unchanged")
+    print(f"Candidate CSV saved to: {csv_path}")
+    print(f"Analysis JSON saved to: {json_path}")
     print(f"Manifest updated: {manifest_path}")
 
 

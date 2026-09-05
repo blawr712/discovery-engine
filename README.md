@@ -6,7 +6,7 @@ Discovery Engine is a modular Python platform that analyzes the North American e
 
 ## Current Status
 
-**Version:** v0.4 Platform — Sprint 3 in progress
+**Version:** v0.4 Platform — Sprint 4 in progress
 
 The project now applies an explainable metadata pre-filter, persistent cache,
 bounded concurrent collection, transient retry/backoff, and resumable runs.
@@ -192,6 +192,26 @@ queues for every passing weighted scenario, creates a combined top-25 review,
 summarizes country and sector composition, and records provenance in the
 original run manifest. It fails safely when a run is incomplete or its
 checkpoints cannot be reconstructed losslessly.
+
+Build a separate Moonshot Discovery research lane from any completed run:
+
+```powershell
+python main.py --moonshot-run RUN_ID
+```
+
+Moonshot Discovery evaluates operating equities between $2 million and
+$50 million in market capitalization. It produces independent Upside Potential
+and Risk of Ruin scores, confidence and missing-input diagnostics, nano-cap and
+micro-cap labels, and review classifications. The command is entirely offline:
+it reconstructs saved run results, makes no provider or AI calls, and cannot
+change the official Discovery Score, candidate rank, or report.
+
+The initial shadow model uses available growth, profitability, cash generation,
+sales valuation, size, cash runway, balance-sheet, leverage, and disclosure
+signals. It deliberately identifies liquidity, volatility/drawdown, dilution,
+and reverse-split history as pending requirements rather than pretending those
+risks are already measured. Moonshot scores organize speculative research; they
+are not return forecasts, price targets, or investment recommendations.
 
 Passing weighted scenarios are compared before one controls the v0.3 research
 queue. The comparison exports consensus rank, rank sensitivity, and candidate
