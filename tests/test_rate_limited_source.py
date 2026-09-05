@@ -28,11 +28,13 @@ class FakeClock:
 
 
 class ScriptedSource(MarketDataSource):
-    def __init__(self, metadata=None, prices=None):
+    def __init__(self, metadata=None, prices=None, shares=None):
         self.metadata = deque(metadata or [])
         self.prices = deque(prices or [])
+        self.shares = deque(shares or [])
         self.metadata_calls = 0
         self.price_calls = 0
+        self.share_calls = 0
 
     def get_stock_data(self, ticker: str) -> dict:
         self.metadata_calls += 1
@@ -44,6 +46,13 @@ class ScriptedSource(MarketDataSource):
     def get_price_history(self, ticker: str, period: str = "1y"):
         self.price_calls += 1
         result = self.prices.popleft() if self.prices else pd.DataFrame()
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    def get_share_history(self, ticker: str, period: str = "18mo"):
+        self.share_calls += 1
+        result = self.shares.popleft() if self.shares else pd.DataFrame()
         if isinstance(result, Exception):
             raise result
         return result
@@ -104,6 +113,22 @@ class RateLimitedMarketDataSourceTests(unittest.TestCase):
         source.get_price_history("TWO")
 
         self.assertEqual(clock.sleeps, [0.25])
+
+    def test_share_history_uses_metadata_pacing_lane(self):
+        clock = FakeClock()
+        provider = ScriptedSource()
+        source = RateLimitedMarketDataSource(
+            provider,
+            metadata_interval_seconds=2,
+            clock=clock,
+            sleeper=clock.sleep,
+        )
+
+        source.get_stock_data("ONE")
+        source.get_share_history("ONE")
+
+        self.assertEqual(clock.sleeps, [2])
+        self.assertEqual(provider.share_calls, 1)
 
     def test_disabled_limiter_bypasses_waits_and_cooldowns(self):
         clock = FakeClock()

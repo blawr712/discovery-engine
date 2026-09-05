@@ -316,7 +316,7 @@ class RunStateTests(unittest.TestCase):
             self.root,
             state.run_id,
             {
-                "model_version": "v0.1-shadow",
+                "model_version": "v0.2-market-risk",
                 "moonshot_analysis_json_path": "moonshot.json",
                 "official_scores_and_ranks_unchanged": True,
             },
@@ -326,7 +326,7 @@ class RunStateTests(unittest.TestCase):
             manifest = json.load(file)
 
         self.assertEqual(
-            manifest["moonshot_artifacts"]["model_version"], "v0.1-shadow",
+            manifest["moonshot_artifacts"]["model_version"], "v0.2-market-risk",
         )
         self.assertTrue(
             manifest["moonshot_artifacts"]["official_scores_and_ranks_unchanged"]

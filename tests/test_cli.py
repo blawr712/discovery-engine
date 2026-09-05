@@ -95,6 +95,19 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--moonshot-run", "run-123", "--limit", "2"])
 
+    def test_moonshot_market_collection_is_explicit_and_bounded(self):
+        args = parse_args([
+            "--moonshot-run", "run-123", "--collect-market-risk",
+            "--moonshot-limit", "10",
+        ])
+
+        self.assertTrue(args.collect_market_risk)
+        self.assertEqual(args.moonshot_limit, 10)
+        with self.assertRaises(SystemExit):
+            parse_args(["--collect-market-risk"])
+        with self.assertRaises(SystemExit):
+            parse_args(["--moonshot-run", "run-123", "--moonshot-limit", "10"])
+
     def test_research_run_accepts_top_and_rejects_top_alone(self):
         args = parse_args(["--research-run", "run-123", "--top", "5"])
 

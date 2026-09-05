@@ -208,10 +208,30 @@ change the official Discovery Score, candidate rank, or report.
 
 The initial shadow model uses available growth, profitability, cash generation,
 sales valuation, size, cash runway, balance-sheet, leverage, and disclosure
-signals. It deliberately identifies liquidity, volatility/drawdown, dilution,
-and reverse-split history as pending requirements rather than pretending those
-risks are already measured. Moonshot scores organize speculative research; they
-are not return forecasts, price targets, or investment recommendations.
+signals. Increment 2 adds 30-session average dollar volume, annualized realized
+volatility, one-year maximum drawdown, reported share-count dilution, and
+reverse-split history. Candidates cannot receive a watch or priority label until
+market-risk coverage passes its configured gate. Moonshot scores organize
+speculative research; they are not return forecasts, price targets, or investment
+recommendations.
+
+The offline command automatically reuses price caches that are no newer than the
+completed source run. To explicitly collect missing price and 18-month share
+history from Yahoo for a controlled smoke set:
+
+```powershell
+python main.py --moonshot-run RUN_ID --collect-market-risk --moonshot-limit 10
+```
+
+Omit `--moonshot-limit` to collect the complete Moonshot universe. This is an
+explicit network action and uses the same persistent cache, pacing, retry,
+cooldown, circuit-breaker, and per-company failure isolation as the main engine.
+Collected evidence is saved separately and reused by later offline Moonshot
+runs. It never changes the official Discovery Score or candidate ordering.
+Bounded collections are intended for smoke testing and may mix capture dates;
+the analysis reports whether coverage and capture timing are sufficient for a
+cross-sectionally comparable universe. Use a full collection before comparing
+Moonshot ranks as one synchronized research cohort.
 
 Passing weighted scenarios are compared before one controls the v0.3 research
 queue. The comparison exports consensus rank, rank sensitivity, and candidate

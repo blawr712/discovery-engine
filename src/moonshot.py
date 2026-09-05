@@ -18,15 +18,29 @@ CLASSIFICATION_ORDER = {
     "priority_research": 0,
     "asymmetric_watch": 1,
     "speculative_watch": 2,
-    "insufficient_evidence": 3,
-    "low_upside_signal": 4,
+    "market_data_required": 3,
+    "insufficient_evidence": 4,
+    "low_upside_signal": 5,
+}
+
+FUNDAMENTAL_RISK_FACTORS = {
+    "cash_runway", "balance_sheet", "profitability", "leverage",
+}
+MARKET_RISK_FACTORS = {
+    "liquidity", "volatility", "maximum_drawdown", "dilution",
+    "reverse_splits",
 }
 
 CSV_FIELDS = (
     "moonshot_rank", "ticker", "company_name", "country", "exchange",
     "sector", "market_cap", "size_tier", "classification", "risk_band",
     "upside_score", "risk_of_ruin_score", "moonshot_confidence",
-    "upside_confidence", "risk_confidence", "fundamental_data_quality",
+    "upside_confidence", "risk_confidence", "market_risk_confidence",
+    "fundamental_data_quality", "market_data_status", "market_data_source",
+    "market_data_captured_at", "market_data_errors",
+    "average_dollar_volume_30d", "annualized_volatility_percent",
+    "maximum_drawdown_percent", "share_count_change_percent",
+    "dilution_percent", "reverse_split_count_1y",
     "source_status", "source_reason_flags", "missing_inputs",
     "upside_factor_breakdown", "risk_factor_breakdown",
 )
@@ -37,6 +51,7 @@ def build_moonshot_analysis(
     run_id: str,
     source_completed_at: str,
     config: dict | None = None,
+    market_evidence: dict[str, dict] | None = None,
 ) -> dict:
     """Build a separate, non-ranking shadow analysis from a completed run."""
     settings = _validated_config(config or MOONSHOT_CONFIG)
@@ -46,7 +61,14 @@ def build_moonshot_analysis(
         market_cap = _positive_number(row.get("market_cap"))
         if not _eligible(row, market_cap, settings):
             continue
-        candidates.append(_score_candidate(row, market_cap, as_of, settings))
+        ticker = str(row.get("ticker") or "")
+        candidates.append(_score_candidate(
+            row,
+            market_cap,
+            as_of,
+            settings,
+            (market_evidence or {}).get(ticker, {}),
+        ))
     candidates.sort(key=lambda row: (
         CLASSIFICATION_ORDER[row["classification"]],
         -row["upside_score"], row["risk_of_ruin_score"],
@@ -55,7 +77,7 @@ def build_moonshot_analysis(
     for rank, candidate in enumerate(candidates, start=1):
         candidate["moonshot_rank"] = rank
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "model_version": settings["model_version"],
         "run_id": run_id,
         "source_completed_at": source_completed_at,
@@ -68,6 +90,7 @@ def build_moonshot_analysis(
         "market_cap_policy": settings["market_cap"],
         "pending_data_requirements": settings["pending_data_requirements"],
         "summary": _summary(candidates),
+        "market_evidence_summary": _market_evidence_summary(candidates),
         "factor_coverage": {
             "upside": _factor_coverage(candidates, "upside_factors"),
             "risk": _factor_coverage(candidates, "risk_factors"),
@@ -98,6 +121,9 @@ def export_moonshot_analysis(
             for candidate in analysis["candidates"]:
                 row = {field: candidate.get(field) for field in CSV_FIELDS}
                 row["missing_inputs"] = "|".join(candidate["missing_inputs"])
+                row["market_data_errors"] = "|".join(
+                    candidate["market_data_errors"]
+                )
                 row["upside_factor_breakdown"] = json.dumps(
                     candidate["upside_factors"], sort_keys=True,
                 )
@@ -111,23 +137,34 @@ def export_moonshot_analysis(
     return csv_path, json_path
 
 
-def _score_candidate(row, market_cap, as_of, config):
+def _score_candidate(row, market_cap, as_of, config, market_evidence):
     quality = _fundamental_quality(
         row.get("fundamental_data_timestamp"), as_of,
         config["maximum_fundamental_age_days"],
     )
     fundamental_usable = quality in {"fresh", "undated"}
     upside = _upside_factors(row, market_cap, config, fundamental_usable)
-    risk = _risk_factors(row, market_cap, config, fundamental_usable)
+    risk = _risk_factors(
+        row, market_cap, config, fundamental_usable, market_evidence,
+    )
     confidence_ratio = (
         config["undated_confidence_ratio"] if quality == "undated"
         else 1.0 if quality == "fresh" else 0.0
     )
     upside_score, upside_confidence = _factor_score(upside, confidence_ratio)
-    risk_score, risk_confidence = _factor_score(risk, confidence_ratio)
+    risk_score, risk_confidence = _factor_score(
+        risk,
+        confidence_ratio,
+        quality_adjusted_names=FUNDAMENTAL_RISK_FACTORS,
+    )
+    market_risk_confidence = _subset_confidence(risk, MARKET_RISK_FACTORS)
     confidence = round(min(upside_confidence, risk_confidence), 2)
     classification = _classification(
-        upside_score, risk_score, confidence, config,
+        upside_score,
+        risk_score,
+        confidence,
+        market_risk_confidence,
+        config,
     )
     missing = sorted({
         factor["label"] for factor in upside + risk
@@ -147,13 +184,36 @@ def _score_candidate(row, market_cap, as_of, config):
             risk_score,
             risk_confidence,
             config["minimum_classification_confidence"],
+            market_risk_confidence,
+            config["minimum_market_risk_confidence"],
         ),
         "upside_score": upside_score,
         "risk_of_ruin_score": risk_score,
         "moonshot_confidence": confidence,
         "upside_confidence": upside_confidence,
         "risk_confidence": risk_confidence,
+        "market_risk_confidence": market_risk_confidence,
         "fundamental_data_quality": quality,
+        "market_data_status": market_evidence.get("data_status", "unavailable"),
+        "market_data_source": market_evidence.get("source"),
+        "market_data_captured_at": market_evidence.get("captured_at"),
+        "average_dollar_volume_30d": market_evidence.get(
+            "average_dollar_volume_30d"
+        ),
+        "annualized_volatility_percent": market_evidence.get(
+            "annualized_volatility_percent"
+        ),
+        "maximum_drawdown_percent": market_evidence.get(
+            "maximum_drawdown_percent"
+        ),
+        "share_count_change_percent": market_evidence.get(
+            "share_count_change_percent"
+        ),
+        "dilution_percent": market_evidence.get("dilution_percent"),
+        "reverse_split_count_1y": market_evidence.get(
+            "reverse_split_count_1y"
+        ),
+        "market_data_errors": market_evidence.get("errors", []),
         "source_status": row.get("status"),
         "source_reason_flags": row.get("reason_flags"),
         "missing_inputs": missing,
@@ -195,7 +255,7 @@ def _upside_factors(row, market_cap, config, usable):
     ]
 
 
-def _risk_factors(row, market_cap, config, usable):
+def _risk_factors(row, market_cap, config, usable, market_evidence):
     weights = config["risk_weights"]
     cash = _number(row.get("total_cash")) if usable else None
     debt = _number(row.get("total_debt")) if usable else None
@@ -216,6 +276,19 @@ def _risk_factors(row, market_cap, config, usable):
         row.get("price_to_sales"),
     )
     missing_ratio = sum(_number(value) is None for value in disclosure_values) / len(disclosure_values)
+    dollar_volume = _positive_number(
+        market_evidence.get("average_dollar_volume_30d")
+    )
+    volatility = _nonnegative_number(
+        market_evidence.get("annualized_volatility_percent")
+    )
+    drawdown = _nonnegative_number(
+        market_evidence.get("maximum_drawdown_percent")
+    )
+    dilution = _number(market_evidence.get("dilution_percent"))
+    reverse_splits = _nonnegative_number(
+        market_evidence.get("reverse_split_count_1y")
+    )
     return [
         _factor("size_fragility", "Size fragility", market_cap, weights,
                 1 if market_cap < 5_000_000 else .67 if market_cap < 10_000_000 else .33 if market_cap < 25_000_000 else .13,
@@ -235,6 +308,28 @@ def _risk_factors(row, market_cap, config, usable):
         _factor("disclosure_gaps", "Disclosure gaps", missing_ratio, weights,
                 missing_ratio,
                 "Missing core financial fields are treated as risk, not neutral evidence."),
+        _factor("liquidity", "Trading liquidity", dollar_volume, weights,
+                _lower_ratio(dollar_volume, ((25_000, 1), (100_000, .75),
+                                             (250_000, .5), (1_000_000, .25))),
+                "Thirty-session average close times volume estimates trading capacity."),
+        _factor("volatility", "Realized volatility", volatility, weights,
+                _higher_risk_ratio(volatility, ((120, 1), (80, .75),
+                                                (50, .4), (30, .15))),
+                "Annualized daily volatility measures historical price instability."),
+        _factor("maximum_drawdown", "Maximum drawdown", drawdown, weights,
+                _higher_risk_ratio(drawdown, ((70, 1), (50, .75),
+                                              (30, .4), (15, .15))),
+                "One-year peak-to-trough loss measures realized downside severity."),
+        _factor("dilution", "Share-count dilution", dilution, weights,
+                _higher_risk_ratio(dilution, ((100, 1), (50, .75),
+                                              (20, .4), (5, .15))),
+                "Reported shares outstanding are compared across at least 180 days."),
+        _factor("reverse_splits", "Reverse-split history", reverse_splits,
+                weights,
+                1 if reverse_splits is not None and reverse_splits >= 2
+                else .75 if reverse_splits is not None and reverse_splits >= 1
+                else 0 if reverse_splits is not None else None,
+                "Reported reverse splits in the one-year price window increase risk."),
     ]
 
 
@@ -249,7 +344,7 @@ def _factor(name, label, raw_value, weights, ratio, explanation, applicable=True
     }
 
 
-def _factor_score(factors, quality_ratio):
+def _factor_score(factors, quality_ratio, quality_adjusted_names=None):
     applicable_max = sum(row["max_points"] for row in factors if row["applicable"])
     available = [row for row in factors if row["applicable"] and row["available"]]
     available_max = sum(row["max_points"] for row in available)
@@ -257,15 +352,33 @@ def _factor_score(factors, quality_ratio):
         round(sum(row["points"] for row in available) / available_max * 100, 2)
         if available_max else 0.0
     )
-    coverage = (
-        available_max / applicable_max * 100 if applicable_max else 0.0
+    quality_adjusted_names = quality_adjusted_names or {
+        row["name"] for row in factors
+    }
+    confident_max = sum(
+        row["max_points"] * (
+            quality_ratio if row["name"] in quality_adjusted_names else 1
+        )
+        for row in available
     )
-    return score, round(coverage * quality_ratio, 2)
+    confidence = confident_max / applicable_max * 100 if applicable_max else 0.0
+    return score, round(confidence, 2)
 
 
-def _classification(upside, risk, confidence, config):
+def _subset_confidence(factors, names):
+    applicable = [
+        row for row in factors if row["name"] in names and row["applicable"]
+    ]
+    maximum = sum(row["max_points"] for row in applicable)
+    available = sum(row["max_points"] for row in applicable if row["available"])
+    return round(available / maximum * 100, 2) if maximum else 0.0
+
+
+def _classification(upside, risk, confidence, market_confidence, config):
     if confidence < config["minimum_classification_confidence"]:
         return "insufficient_evidence"
+    if market_confidence < config["minimum_market_risk_confidence"]:
+        return "market_data_required"
     if (
         confidence >= config["priority_confidence_minimum"]
         and upside >= config["priority_upside_minimum"]
@@ -299,8 +412,47 @@ def _summary(candidates):
         "countries": _counts(row.get("country") or "UNKNOWN" for row in candidates),
         "classifications": _counts(row["classification"] for row in candidates),
         "risk_bands": _counts(row["risk_band"] for row in candidates),
+        "market_data_status": _counts(
+            row["market_data_status"] for row in candidates
+        ),
         "fundamental_data_quality": _counts(
             row["fundamental_data_quality"] for row in candidates
+        ),
+    }
+
+
+def _market_evidence_summary(candidates):
+    covered = [
+        row for row in candidates
+        if row["market_data_status"] != "unavailable"
+    ]
+    timestamps = []
+    for row in covered:
+        try:
+            timestamps.append(_timestamp(row["market_data_captured_at"]))
+        except (TypeError, ValueError, OSError, OverflowError):
+            continue
+    first = min(timestamps) if timestamps else None
+    last = max(timestamps) if timestamps else None
+    span_days = (
+        round((last - first).total_seconds() / 86400, 2)
+        if first is not None and last is not None else None
+    )
+    complete_coverage = len(covered) == len(candidates) and bool(candidates)
+    return {
+        "covered_candidates": len(covered),
+        "coverage_percent": (
+            round(len(covered) / len(candidates) * 100, 2)
+            if candidates else 0.0
+        ),
+        "sources": _counts(
+            row.get("market_data_source") or "UNKNOWN" for row in covered
+        ),
+        "first_captured_at": first.isoformat() if first is not None else None,
+        "last_captured_at": last.isoformat() if last is not None else None,
+        "capture_span_days": span_days,
+        "cross_section_comparable": (
+            complete_coverage and span_days is not None and span_days <= 7
         ),
     }
 
@@ -331,6 +483,7 @@ def _validated_config(config):
     required = {
         "model_version", "market_cap", "maximum_fundamental_age_days",
         "undated_confidence_ratio", "minimum_classification_confidence",
+        "minimum_market_risk_confidence",
         "priority_confidence_minimum",
         "priority_upside_minimum", "priority_risk_maximum",
         "watch_upside_minimum", "watch_risk_maximum",
@@ -392,8 +545,17 @@ def _runway_risk(runway):
     return 1
 
 
-def _risk_band(value, confidence, minimum_confidence):
-    if confidence < minimum_confidence:
+def _risk_band(
+    value,
+    confidence,
+    minimum_confidence,
+    market_confidence,
+    minimum_market_confidence,
+):
+    if (
+        confidence <= minimum_confidence
+        or market_confidence < minimum_market_confidence
+    ):
         return "unresolved"
     return "controlled" if value <= 30 else "elevated" if value <= 55 else "severe"
 
@@ -415,6 +577,11 @@ def _number(value):
 def _positive_number(value):
     number = _number(value)
     return number if number is not None and number > 0 else None
+
+
+def _nonnegative_number(value):
+    number = _number(value)
+    return number if number is not None and number >= 0 else None
 
 
 def _first_number(*values):

@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import unittest
 
 import pandas as pd
@@ -18,6 +18,21 @@ class YFinanceSourceTests(unittest.TestCase):
             "TEST", period="1y", interval="1d", auto_adjust=True,
             actions=True, progress=False,
         )
+
+    @patch("src.data_sources.yfinance_source.yf.Ticker")
+    def test_normalizes_reported_share_history(self, ticker_class):
+        ticker = Mock()
+        ticker.get_shares_full.return_value = pd.Series(
+            [10_000_000, 12_000_000],
+            index=pd.to_datetime(["2025-01-01", "2026-01-01"], utc=True),
+        )
+        ticker_class.return_value = ticker
+
+        result = YFinanceSource().get_share_history("TEST")
+
+        self.assertEqual(list(result.columns), ["Date", "Shares"])
+        self.assertEqual(result.iloc[-1]["Shares"], 12_000_000)
+        ticker.get_shares_full.assert_called_once_with()
 
 
 if __name__ == "__main__":

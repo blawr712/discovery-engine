@@ -37,6 +37,10 @@ CACHE_PRICE_HISTORY_TTL_HOURS = CACHE_CONFIG.get(
     "price_history_ttl_hours",
     24,
 )
+CACHE_SHARE_HISTORY_TTL_HOURS = CACHE_CONFIG.get(
+    "share_history_ttl_hours",
+    168,
+)
 
 RUNTIME_CONFIG = SETTINGS.get("runtime", {})
 MAX_CONCURRENT_DOWNLOADS = RUNTIME_CONFIG.get(

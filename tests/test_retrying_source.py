@@ -11,11 +11,13 @@ from src.data_sources.retrying_source import (
 
 
 class ScriptedSource(MarketDataSource):
-    def __init__(self, metadata=None, prices=None):
+    def __init__(self, metadata=None, prices=None, shares=None):
         self.metadata = deque(metadata or [])
         self.prices = deque(prices or [])
+        self.shares = deque(shares or [])
         self.metadata_calls = 0
         self.price_calls = []
+        self.share_calls = []
 
     def get_stock_data(self, ticker: str) -> dict:
         self.metadata_calls += 1
@@ -33,6 +35,13 @@ class ScriptedSource(MarketDataSource):
         if isinstance(result, Exception):
             raise result
 
+        return result
+
+    def get_share_history(self, ticker: str, period: str = "18mo"):
+        self.share_calls.append((ticker, period))
+        result = self.shares.popleft()
+        if isinstance(result, Exception):
+            raise result
         return result
 
 
@@ -117,6 +126,26 @@ class RetryingMarketDataSourceTests(unittest.TestCase):
         self.assertEqual(
             provider.price_calls,
             [("TEST", "6mo"), ("TEST", "6mo")],
+        )
+
+    def test_retries_share_history_and_preserves_period(self):
+        expected = pd.DataFrame({"Shares": [10_000_000]})
+        provider = ScriptedSource(
+            shares=[OSError("network"), expected]
+        )
+        source = RetryingMarketDataSource(
+            provider,
+            base_delay_seconds=0,
+            jitter_seconds=0,
+            sleeper=lambda _: None,
+        )
+
+        result = source.get_share_history("TEST", "18mo")
+
+        self.assertIs(result, expected)
+        self.assertEqual(
+            provider.share_calls,
+            [("TEST", "18mo"), ("TEST", "18mo")],
         )
 
     def test_recognizes_rate_limit_by_provider_exception_name(self):

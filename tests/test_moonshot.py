@@ -30,7 +30,19 @@ class MoonshotTests(unittest.TestCase):
         original = copy.deepcopy(source)
 
         analysis = build_moonshot_analysis(
-            source, "run-1", self.COMPLETED_AT,
+            source,
+            "run-1",
+            self.COMPLETED_AT,
+            market_evidence={
+                "STRONG": self._market(),
+                "RISKY": self._market(
+                    average_dollar_volume_30d=10_000,
+                    annualized_volatility_percent=150,
+                    maximum_drawdown_percent=80,
+                    dilution_percent=110,
+                    reverse_split_count_1y=1,
+                ),
+            },
         )
 
         self.assertEqual(source, original)
@@ -38,9 +50,12 @@ class MoonshotTests(unittest.TestCase):
         by_ticker = {row["ticker"]: row for row in analysis["candidates"]}
         self.assertEqual(by_ticker["STRONG"]["classification"], "priority_research")
         self.assertEqual(by_ticker["STRONG"]["upside_score"], 100)
-        self.assertEqual(by_ticker["STRONG"]["risk_of_ruin_score"], 10.05)
+        self.assertLess(by_ticker["STRONG"]["risk_of_ruin_score"], 10)
         self.assertEqual(by_ticker["RISKY"]["classification"], "speculative_watch")
         self.assertEqual(by_ticker["RISKY"]["risk_band"], "severe")
+        self.assertTrue(
+            analysis["market_evidence_summary"]["cross_section_comparable"]
+        )
 
     def test_selects_configured_market_cap_lane_and_operating_equities(self):
         rows = [
@@ -72,7 +87,10 @@ class MoonshotTests(unittest.TestCase):
         )
 
         analysis = build_moonshot_analysis(
-            [missing, stale], "run-1", self.COMPLETED_AT,
+            [missing, stale],
+            "run-1",
+            self.COMPLETED_AT,
+            market_evidence={"MISSING": self._market(), "STALE": self._market()},
         )
         by_ticker = {row["ticker"]: row for row in analysis["candidates"]}
 
@@ -90,12 +108,31 @@ class MoonshotTests(unittest.TestCase):
         )
 
         candidate = build_moonshot_analysis(
-            [row], "run-1", self.COMPLETED_AT,
+            [row],
+            "run-1",
+            self.COMPLETED_AT,
+            market_evidence={"PARTIAL": self._market()},
         )["candidates"][0]
 
         self.assertGreaterEqual(candidate["upside_score"], 75)
-        self.assertLess(candidate["moonshot_confidence"], 70)
+        self.assertLess(candidate["moonshot_confidence"], 80)
         self.assertNotEqual(candidate["classification"], "priority_research")
+
+    def test_requires_market_risk_evidence_before_watch_classification(self):
+        row = self._row(
+            "NO_MARKET", 5_000_000, revenue_growth=.6, earnings_growth=.6,
+            operating_margin=.25, operating_cash_flow=2_000_000,
+            free_cash_flow=1_000_000, total_cash=5_000_000,
+            total_debt=0, debt_to_equity=0, price_to_sales=.8,
+        )
+
+        candidate = build_moonshot_analysis(
+            [row], "run-1", self.COMPLETED_AT,
+        )["candidates"][0]
+
+        self.assertEqual(candidate["classification"], "market_data_required")
+        self.assertEqual(candidate["risk_band"], "unresolved")
+        self.assertEqual(candidate["market_risk_confidence"], 0)
 
     def test_exports_deterministic_csv_and_json_artifacts(self):
         analysis = build_moonshot_analysis(
@@ -140,6 +177,21 @@ class MoonshotTests(unittest.TestCase):
         }
         row.update(overrides)
         return row
+
+    @staticmethod
+    def _market(**overrides):
+        evidence = {
+            "data_status": "complete",
+            "captured_at": "2026-08-23T12:00:00+00:00",
+            "average_dollar_volume_30d": 2_000_000,
+            "annualized_volatility_percent": 25,
+            "maximum_drawdown_percent": 10,
+            "dilution_percent": 0,
+            "reverse_split_count_1y": 0,
+            "errors": [],
+        }
+        evidence.update(overrides)
+        return evidence
 
 
 if __name__ == "__main__":

@@ -54,6 +54,12 @@ from src.history_reporting import (
 )
 from src.dashboard import run_dashboard
 from src.moonshot import build_moonshot_analysis, export_moonshot_analysis
+from src.moonshot_market import (
+    collect_market_risk_evidence,
+    export_market_risk_evidence,
+    load_market_risk_evidence,
+    load_run_compatible_price_evidence,
+)
 from src.cli import parse_args, select_universe
 from src.config import (
     BENCHMARKS,
@@ -62,6 +68,7 @@ from src.config import (
     CACHE_METADATA_TTL_HOURS,
     CACHE_METADATA_VERSION,
     CACHE_PRICE_HISTORY_TTL_HOURS,
+    CACHE_SHARE_HISTORY_TTL_HOURS,
     MAX_CONCURRENT_DOWNLOADS,
     METADATA_CONCURRENT_DOWNLOADS,
     PRICE_CONCURRENT_DOWNLOADS,
@@ -101,6 +108,34 @@ def print_progress(
     print(f"[{phase}] {completed}/{total}: {ticker}")
 
 
+def build_market_data_source() -> CachedMarketDataSource:
+    """Build the shared paced, retried, persistent market-data provider."""
+    provider = RateLimitedMarketDataSource(
+        YFinanceSource(),
+        metadata_interval_seconds=METADATA_INTERVAL_SECONDS,
+        price_interval_seconds=PRICE_INTERVAL_SECONDS,
+        cooldown_seconds=RATE_LIMIT_COOLDOWN_SECONDS,
+        max_cooldown_events=MAX_RATE_LIMIT_COOLDOWN_EVENTS,
+        enabled=RATE_LIMIT_ENABLED,
+    )
+    retry_source = RetryingMarketDataSource(
+        provider,
+        max_attempts=RETRY_MAX_ATTEMPTS if RETRY_ENABLED else 1,
+        base_delay_seconds=RETRY_BASE_DELAY_SECONDS,
+        max_delay_seconds=RETRY_MAX_DELAY_SECONDS,
+        jitter_seconds=RETRY_JITTER_SECONDS,
+    )
+    return CachedMarketDataSource(
+        retry_source,
+        cache_directory=CACHE_DIR,
+        metadata_ttl_hours=CACHE_METADATA_TTL_HOURS,
+        metadata_version=CACHE_METADATA_VERSION,
+        price_history_ttl_hours=CACHE_PRICE_HISTORY_TTL_HOURS,
+        share_history_ttl_hours=CACHE_SHARE_HISTORY_TTL_HOURS,
+        enabled=CACHE_ENABLED,
+    )
+
+
 def main(arguments=None):
     args = parse_args(arguments)
     if args.index_run:
@@ -128,7 +163,11 @@ def main(arguments=None):
         recalibrate_saved_run(args.recalibrate_run)
         return
     if args.moonshot_run:
-        analyze_moonshot_run(args.moonshot_run)
+        analyze_moonshot_run(
+            args.moonshot_run,
+            source=(build_market_data_source() if args.collect_market_risk else None),
+            collection_limit=args.moonshot_limit,
+        )
         return
     if args.audit_research:
         audit_saved_research(args.audit_research)
@@ -151,29 +190,7 @@ def main(arguments=None):
             balanced_per_country=args.balanced_research,
         )
         return
-    provider = RateLimitedMarketDataSource(
-        YFinanceSource(),
-        metadata_interval_seconds=METADATA_INTERVAL_SECONDS,
-        price_interval_seconds=PRICE_INTERVAL_SECONDS,
-        cooldown_seconds=RATE_LIMIT_COOLDOWN_SECONDS,
-        max_cooldown_events=MAX_RATE_LIMIT_COOLDOWN_EVENTS,
-        enabled=RATE_LIMIT_ENABLED,
-    )
-    retry_source = RetryingMarketDataSource(
-        provider,
-        max_attempts=RETRY_MAX_ATTEMPTS if RETRY_ENABLED else 1,
-        base_delay_seconds=RETRY_BASE_DELAY_SECONDS,
-        max_delay_seconds=RETRY_MAX_DELAY_SECONDS,
-        jitter_seconds=RETRY_JITTER_SECONDS,
-    )
-    source = CachedMarketDataSource(
-        retry_source,
-        cache_directory=CACHE_DIR,
-        metadata_ttl_hours=CACHE_METADATA_TTL_HOURS,
-        metadata_version=CACHE_METADATA_VERSION,
-        price_history_ttl_hours=CACHE_PRICE_HISTORY_TTL_HOURS,
-        enabled=CACHE_ENABLED,
-    )
+    source = build_market_data_source()
     universe = UniverseBuilder().build_universe()
     try:
         universe = select_universe(
@@ -428,15 +445,49 @@ def recalibrate_saved_run(run_id: str) -> None:
     print(f"Manifest updated: {manifest_path}")
 
 
-def analyze_moonshot_run(run_id: str) -> None:
-    """Build the Moonshot shadow lane without initializing any provider."""
+def analyze_moonshot_run(
+    run_id: str,
+    source: CachedMarketDataSource | None = None,
+    collection_limit: int | None = None,
+) -> None:
+    """Build Moonshot analysis offline, with explicitly optional collection."""
     try:
         manifest, results = load_saved_run(RUN_DIR, run_id)
-        analysis = build_moonshot_analysis(
+        preliminary = build_moonshot_analysis(
             results, run_id, manifest.get("completed_at"),
+        )
+        cached_evidence, cache_stats = load_run_compatible_price_evidence(
+            CACHE_DIR,
+            preliminary["candidates"],
+            manifest.get("completed_at"),
+        )
+        saved_evidence = load_market_risk_evidence(OUTPUT_DIR, run_id)
+        market_evidence = {**cached_evidence, **saved_evidence}
+        collection_stats = None
+        if source is not None:
+            selected = preliminary["candidates"][:collection_limit]
+            collected, collection_stats = collect_market_risk_evidence(
+                selected,
+                source,
+                max_workers=PRICE_CONCURRENT_DOWNLOADS,
+                progress_callback=print_progress,
+            )
+            market_evidence.update(collected)
+        market_evidence_path = export_market_risk_evidence(
+            market_evidence,
+            OUTPUT_DIR,
+            run_id,
+            manifest.get("completed_at"),
+        )
+        analysis = build_moonshot_analysis(
+            results,
+            run_id,
+            manifest.get("completed_at"),
+            market_evidence=market_evidence,
         )
         csv_path, json_path = export_moonshot_analysis(analysis, OUTPUT_DIR)
         summary = analysis["summary"]
+        market_summary = analysis["market_evidence_summary"]
         manifest_path = record_moonshot_analysis(
             RUN_DIR,
             run_id,
@@ -446,22 +497,58 @@ def analyze_moonshot_run(run_id: str) -> None:
                 "source_completed_at": manifest.get("completed_at"),
                 "candidate_count": summary["candidate_count"],
                 "nano_cap_count": summary["nano_cap_count"],
+                "market_evidence_count": len(market_evidence),
+                "market_data_status": summary["market_data_status"],
+                "market_risk_collected": source is not None,
+                "market_cross_section_comparable": market_summary[
+                    "cross_section_comparable"
+                ],
                 "official_scores_and_ranks_unchanged": True,
                 "moonshot_candidates_csv_path": str(csv_path),
                 "moonshot_analysis_json_path": str(json_path),
+                "moonshot_market_evidence_json_path": str(market_evidence_path),
             },
         )
     except (FileNotFoundError, OSError, TypeError, ValueError) as error:
         raise SystemExit(f"Unable to build Moonshot analysis: {error}") from error
-    print(f"Offline Moonshot Discovery complete for run: {run_id}")
+    action = (
+        "Moonshot market collection and analysis"
+        if source is not None else "Offline Moonshot Discovery"
+    )
+    print(f"{action} complete for run: {run_id}")
     print(f"Model: {analysis['model_version']}")
     print(f"Eligible candidates: {summary['candidate_count']}")
     print(f"Sub-$10M nano-cap candidates: {summary['nano_cap_count']}")
     for name, count in summary["classifications"].items():
         print(f"{name.replace('_', ' ').title()}: {count}")
+    print(f"Market evidence records: {len(market_evidence)}")
+    print(
+        "Market evidence coverage: "
+        f"{market_summary['coverage_percent']}%"
+    )
+    print(
+        "Cross-section comparable: "
+        f"{'yes' if market_summary['cross_section_comparable'] else 'no'}"
+    )
+    print(
+        "Run-compatible price cache: "
+        f"{cache_stats['loaded']} loaded, {cache_stats['missing']} missing, "
+        f"{cache_stats['newer_than_run']} newer, "
+        f"{cache_stats['read_errors']} read errors"
+    )
+    if collection_stats is not None:
+        print(
+            "Market-risk collection: "
+            f"{collection_stats['complete']} complete, "
+            f"{collection_stats['price_only']} price-only, "
+            f"{collection_stats['partial']} partial, "
+            f"{collection_stats['unavailable']} unavailable, "
+            f"{collection_stats['with_errors']} with errors"
+        )
     print("Official Discovery scores and ranks: unchanged")
     print(f"Candidate CSV saved to: {csv_path}")
     print(f"Analysis JSON saved to: {json_path}")
+    print(f"Market evidence saved to: {market_evidence_path}")
     print(f"Manifest updated: {manifest_path}")
 
 

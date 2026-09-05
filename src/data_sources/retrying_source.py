@@ -81,6 +81,12 @@ class RetryingMarketDataSource(MarketDataSource):
             lambda: self.source.get_price_history(ticker, period)
         )
 
+    def get_share_history(self, ticker: str, period: str = "18mo"):
+        """Fetch share history, retrying only transient provider failures."""
+        return self._execute(
+            lambda: self.source.get_share_history(ticker, period)
+        )
+
     def _execute(self, operation: Callable[[], T]) -> T:
         for attempt in range(1, self.max_attempts + 1):
             try:

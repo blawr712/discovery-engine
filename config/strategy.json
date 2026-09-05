@@ -222,7 +222,7 @@
     },
 
     "moonshot": {
-        "model_version": "v0.1-shadow",
+        "model_version": "v0.2-market-risk",
         "market_cap": {
             "minimum": 2000000,
             "nano_cap_maximum": 10000000,
@@ -231,7 +231,8 @@
         "maximum_fundamental_age_days": 550,
         "undated_confidence_ratio": 0.75,
         "minimum_classification_confidence": 50,
-        "priority_confidence_minimum": 70,
+        "minimum_market_risk_confidence": 70,
+        "priority_confidence_minimum": 80,
         "priority_upside_minimum": 75,
         "priority_risk_maximum": 35,
         "watch_upside_minimum": 60,
@@ -246,18 +247,21 @@
             "market_cap_headroom": 15
         },
         "risk_weights": {
-            "size_fragility": 15,
-            "cash_runway": 25,
-            "balance_sheet": 20,
-            "profitability": 15,
-            "leverage": 10,
-            "disclosure_gaps": 15
+            "size_fragility": 10,
+            "cash_runway": 20,
+            "balance_sheet": 15,
+            "profitability": 10,
+            "leverage": 5,
+            "disclosure_gaps": 10,
+            "liquidity": 10,
+            "volatility": 8,
+            "maximum_drawdown": 7,
+            "dilution": 3,
+            "reverse_splits": 2
         },
         "pending_data_requirements": [
-            "average dollar volume",
-            "volatility and maximum drawdown",
-            "share-count dilution history",
-            "reverse-split history"
+            "bid-ask spread and trading-impact estimates",
+            "financing, ATM, and shelf-registration events"
         ]
     },
 

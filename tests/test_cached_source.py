@@ -15,6 +15,7 @@ class FakeMarketDataSource(MarketDataSource):
     def __init__(self):
         self.metadata_calls = 0
         self.history_calls = 0
+        self.share_calls = 0
 
     def get_stock_data(self, ticker: str) -> dict:
         self.metadata_calls += 1
@@ -35,6 +36,17 @@ class FakeMarketDataSource(MarketDataSource):
                 "Volume": [1000, 1200],
             }
         )
+
+    def get_share_history(
+        self,
+        ticker: str,
+        period: str = "18mo",
+    ) -> pd.DataFrame:
+        self.share_calls += 1
+        return pd.DataFrame({
+            "Date": pd.to_datetime(["2025-01-01", "2026-01-01"], utc=True),
+            "Shares": [10_000_000, 12_000_000],
+        })
 
 
 class CachedMarketDataSourceTests(unittest.TestCase):
@@ -78,6 +90,15 @@ class CachedMarketDataSourceTests(unittest.TestCase):
         self.assertEqual(self.provider.history_calls, 2)
         self.assertEqual(self.source.stats.hits, 1)
         self.assertEqual(self.source.stats.misses, 2)
+
+    def test_caches_share_history_by_ticker_and_period(self):
+        first = self.source.get_share_history("TEST")
+        second = self.source.get_share_history("TEST")
+
+        assert_frame_equal(first, second, check_dtype=False)
+        self.assertEqual(self.provider.share_calls, 1)
+        self.assertEqual(self.source.stats.hits, 1)
+        self.assertEqual(self.source.stats.misses, 1)
 
     def test_refreshes_expired_cache_entries(self):
         self.source.get_stock_data("TEST")

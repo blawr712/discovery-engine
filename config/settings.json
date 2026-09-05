@@ -25,7 +25,8 @@
         "enabled": true,
         "metadata_version": "v0.3-fundamentals-2",
         "metadata_ttl_hours": 168,
-        "price_history_ttl_hours": 24
+        "price_history_ttl_hours": 24,
+        "share_history_ttl_hours": 168
     },
 
     "retry": {

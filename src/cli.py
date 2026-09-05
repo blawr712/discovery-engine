@@ -100,6 +100,17 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         help="research only the top COUNT selected candidates",
     )
     parser.add_argument(
+        "--collect-market-risk",
+        action="store_true",
+        help="collect cached price/share evidence for --moonshot-run",
+    )
+    parser.add_argument(
+        "--moonshot-limit",
+        type=_positive_integer,
+        metavar="COUNT",
+        help="collect market-risk evidence for only the first COUNT Moonshot names",
+    )
+    parser.add_argument(
         "--balanced-research",
         type=_positive_integer,
         metavar="PER_COUNTRY",
@@ -130,6 +141,10 @@ def parse_args(arguments: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error("--dashboard-port requires --dashboard")
     if args.top is not None and args.research_run is None:
         parser.error("--top requires --research-run")
+    if args.collect_market_risk and args.moonshot_run is None:
+        parser.error("--collect-market-risk requires --moonshot-run")
+    if args.moonshot_limit is not None and not args.collect_market_risk:
+        parser.error("--moonshot-limit requires --collect-market-risk")
     if args.balanced_research is not None and args.research_run is None:
         parser.error("--balanced-research requires --research-run")
     if args.top is not None and args.balanced_research is not None:

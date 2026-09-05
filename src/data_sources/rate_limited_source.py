@@ -96,6 +96,18 @@ class RateLimitedMarketDataSource(MarketDataSource):
             self._register_rate_limit(error)
             raise
 
+    def get_share_history(self, ticker: str, period: str = "18mo"):
+        """Fetch share history through the slower metadata pacing lane."""
+        if not self.enabled:
+            return self.source.get_share_history(ticker, period)
+
+        self._wait_for_slot("metadata")
+        try:
+            return self.source.get_share_history(ticker, period)
+        except Exception as error:
+            self._register_rate_limit(error)
+            raise
+
     def _wait_for_slot(self, request_type: str) -> None:
         while True:
             with self._lock:

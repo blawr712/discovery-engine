@@ -57,6 +57,22 @@ class YFinanceSource(MarketDataSource):
 
         return df
 
+    def get_share_history(
+        self,
+        ticker: str,
+        period: str = "18mo",
+    ) -> pd.DataFrame:
+        """Return Yahoo's reported historical shares outstanding."""
+        if period != "18mo":
+            raise ValueError("Yahoo share history currently supports period='18mo'.")
+        history = yf.Ticker(ticker).get_shares_full()
+        if history is None or history.empty:
+            return pd.DataFrame(columns=["Date", "Shares"])
+        return pd.DataFrame({
+            "Date": pd.to_datetime(history.index, utc=True),
+            "Shares": pd.to_numeric(history.to_numpy(), errors="coerce"),
+        }).dropna(subset=["Shares"])
+
     @staticmethod
     def _infer_country(ticker: str) -> str:
         if ticker.endswith(".TO") or ticker.endswith(".V") or ticker.endswith(".CN"):

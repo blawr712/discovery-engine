@@ -51,6 +51,14 @@
 - Added deterministic Moonshot CSV/JSON exports and manifest provenance
 - Added nano-cap/micro-cap cohorts and explicit pending liquidity, drawdown,
   dilution, and reverse-split requirements
+- Added Moonshot average-dollar-volume, realized-volatility, maximum-drawdown,
+  share-dilution, and reverse-split risk factors
+- Added run-compatible offline price-cache reuse and reusable market-evidence
+  artifacts with per-company provenance and failure isolation
+- Added explicit bounded `--collect-market-risk` collection with cached Yahoo
+  price/share history and existing provider safety controls
+- Blocked Moonshot watch and priority labels until market-risk coverage is
+  sufficient, with unresolved risk bands for incomplete evidence
 
 ## v0.3.0 Intelligence — 2026-08-09
 
